@@ -9,7 +9,7 @@ jobs:
         arch: [ "arm", "arm64" ]
 
     name: Build For Android (libraries and apks)
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: namespace-profile-default
 
     steps:
       - name: Free up disk space
