@@ -12,6 +12,7 @@
 #include <dawn/dawn_proc.h>
 
 #include "common/debug.h"
+#include "common/platform.h"
 
 #include "libANGLE/Display.h"
 #include "libANGLE/renderer/wgpu/ContextWgpu.h"
@@ -29,12 +30,18 @@ DisplayWgpu::~DisplayWgpu() {}
 
 egl::Error DisplayWgpu::initialize(egl::Display *display)
 {
-    egl::Error create_device_err = createWgpuDevice();
-    if (create_device_err.isError())
-    {
-        return create_device_err;
-    }
+    ANGLE_TRY(createWgpuDevice());
+
     mQueue = mDevice.GetQueue();
+    mFormatTable.initialize();
+
+    wgpu::SupportedLimits supportedLimits;
+    mDevice.GetLimits(&supportedLimits);
+    mLimitsWgpu = supportedLimits.limits;
+
+    webgpu::GenerateCaps(mLimitsWgpu, &mGLCaps, &mGLTextureCaps, &mGLExtensions, &mGLLimitations,
+                         &mEGLCaps, &mEGLExtensions, &mMaxSupportedClientVersion);
+
     return egl::NoError();
 }
 
@@ -55,7 +62,7 @@ egl::Error DisplayWgpu::makeCurrent(egl::Display *display,
 egl::ConfigSet DisplayWgpu::generateConfigs()
 {
     egl::Config config;
-    config.renderTargetFormat    = GL_RGBA8;
+    config.renderTargetFormat    = GL_BGRA8_EXT;
     config.depthStencilFormat    = GL_DEPTH24_STENCIL8;
     config.bufferSize            = 32;
     config.redSize               = 8;
@@ -142,17 +149,12 @@ egl::Error DisplayWgpu::waitNative(const gl::Context *context, EGLint engine)
 
 gl::Version DisplayWgpu::getMaxSupportedESVersion() const
 {
-    return gl::Version(3, 2);
-}
-
-Optional<gl::Version> DisplayWgpu::getMaxSupportedDesktopVersion() const
-{
-    return Optional<gl::Version>::Invalid();
+    return mMaxSupportedClientVersion;
 }
 
 gl::Version DisplayWgpu::getMaxConformantESVersion() const
 {
-    return getMaxSupportedESVersion();
+    return mMaxSupportedClientVersion;
 }
 
 SurfaceImpl *DisplayWgpu::createWindowSurface(const egl::SurfaceState &state,
@@ -215,36 +217,27 @@ ShareGroupImpl *DisplayWgpu::createShareGroup(const egl::ShareGroupState &state)
     return new ShareGroupWgpu(state);
 }
 
+angle::NativeWindowSystem DisplayWgpu::getWindowSystem() const
+{
+#if defined(ANGLE_PLATFORM_LINUX)
+#    if defined(ANGLE_USE_X11)
+    return angle::NativeWindowSystem::X11;
+#    elif defined(ANGLE_USE_WAYLAND)
+    return angle::NativeWindowSystem::Wayland;
+#    endif
+#else
+    return angle::NativeWindowSystem::Other;
+#endif
+}
+
 void DisplayWgpu::generateExtensions(egl::DisplayExtensions *outExtensions) const
 {
-    outExtensions->createContextRobustness            = true;
-    outExtensions->postSubBuffer                      = true;
-    outExtensions->createContext                      = true;
-    outExtensions->image                              = true;
-    outExtensions->imageBase                          = true;
-    outExtensions->glTexture2DImage                   = true;
-    outExtensions->glTextureCubemapImage              = true;
-    outExtensions->glTexture3DImage                   = true;
-    outExtensions->glRenderbufferImage                = true;
-    outExtensions->getAllProcAddresses                = true;
-    outExtensions->noConfigContext                    = true;
-    outExtensions->directComposition                  = true;
-    outExtensions->createContextNoError               = true;
-    outExtensions->createContextWebGLCompatibility    = true;
-    outExtensions->createContextBindGeneratesResource = true;
-    outExtensions->swapBuffersWithDamage              = true;
-    outExtensions->pixelFormatFloat                   = true;
-    outExtensions->surfacelessContext                 = true;
-    outExtensions->displayTextureShareGroup           = true;
-    outExtensions->displaySemaphoreShareGroup         = true;
-    outExtensions->createContextClientArrays          = true;
-    outExtensions->programCacheControlANGLE           = true;
-    outExtensions->robustResourceInitializationANGLE  = true;
+    *outExtensions = mEGLExtensions;
 }
 
 void DisplayWgpu::generateCaps(egl::Caps *outCaps) const
 {
-    outCaps->textureNPOT = true;
+    *outCaps = mEGLCaps;
 }
 
 egl::Error DisplayWgpu::createWgpuDevice()
@@ -290,8 +283,7 @@ egl::Error DisplayWgpu::createWgpuDevice()
 
     mAdapter = adapterResult.adapter;
 
-    std::vector<wgpu::FeatureName> requiredFeatures;
-    requiredFeatures.push_back(wgpu::FeatureName::SurfaceCapabilities);
+    std::vector<wgpu::FeatureName> requiredFeatures;  // empty for now
 
     wgpu::DeviceDescriptor deviceDesc;
     deviceDesc.requiredFeatureCount = requiredFeatures.size();

@@ -538,6 +538,7 @@ angle::Result FramebufferVk::clearImpl(const gl::Context *context,
     gl::DrawBuffersArray<VkClearColorValue> adjustedClearColorValues;
     const gl::DrawBufferMask colorAttachmentMask = mState.getColorAttachmentsMask();
     const auto &colorRenderTargets               = mRenderTargetCache.getColors();
+    bool anyAttachmentWithColorspaceOverride     = false;
     for (size_t colorIndexGL = 0; colorIndexGL < colorAttachmentMask.size(); ++colorIndexGL)
     {
         if (colorAttachmentMask[colorIndexGL])
@@ -546,6 +547,13 @@ angle::Result FramebufferVk::clearImpl(const gl::Context *context,
 
             RenderTargetVk *colorRenderTarget = colorRenderTargets[colorIndexGL];
             ASSERT(colorRenderTarget);
+
+            // If a rendertarget has colorspace overrides, we need to clear with a draw
+            // to make sure the colorspace override is honored.
+            anyAttachmentWithColorspaceOverride =
+                anyAttachmentWithColorspaceOverride ||
+                colorRenderTarget->hasColorspaceOverrideForWrite();
+
             if (colorRenderTarget->isYuvResolve())
             {
                 // OpenGLES spec says "clear color should be defined in yuv color space and so
@@ -559,7 +567,7 @@ angle::Result FramebufferVk::clearImpl(const gl::Context *context,
                 adjustedClearColorValues[colorIndexGL].float32[1] = clearColorValue.float32[0];
                 adjustedClearColorValues[colorIndexGL].float32[2] = clearColorValue.float32[1];
             }
-            else if (contextVk->getRenderer()->getFeatures().adjustClearColorPrecision.enabled)
+            else if (contextVk->getFeatures().adjustClearColorPrecision.enabled)
             {
                 const angle::FormatID colorRenderTargetFormat =
                     colorRenderTarget->getImageForRenderPass().getActualFormatID();
@@ -602,7 +610,8 @@ angle::Result FramebufferVk::clearImpl(const gl::Context *context,
                                                     mActiveColorComponentMasksForClear;
     const bool maskedClearStencil = clearStencil && stencilMask != 0xFF;
 
-    bool clearColorWithDraw   = clearColor && (maskedClearColor || scissoredClear);
+    bool clearColorWithDraw =
+        clearColor && (maskedClearColor || scissoredClear || anyAttachmentWithColorspaceOverride);
     bool clearDepthWithDraw   = clearDepth && scissoredClear;
     bool clearStencilWithDraw = clearStencil && (maskedClearStencil || scissoredClear);
 
@@ -625,7 +634,7 @@ angle::Result FramebufferVk::clearImpl(const gl::Context *context,
     }
 
     const bool preferDrawOverClearAttachments =
-        contextVk->getRenderer()->getFeatures().preferDrawClearOverVkCmdClearAttachments.enabled;
+        contextVk->getFeatures().preferDrawClearOverVkCmdClearAttachments.enabled;
 
     // Merge current clears with the deferred clears, then proceed with only processing deferred
     // clears.  This simplifies the clear paths such that they don't need to consider both the
@@ -753,7 +762,7 @@ angle::Result FramebufferVk::clearImpl(const gl::Context *context,
     // revert to vkCmdClearAttachments.  This is not currently deemed necessary.
     if (((clearColorBuffers.any() && !mEmulatedAlphaAttachmentMask.any() && !maskedClearColor) ||
          clearDepthWithDraw || (clearStencilWithDraw && !maskedClearStencil)) &&
-        !preferDrawOverClearAttachments)
+        !preferDrawOverClearAttachments && !anyAttachmentWithColorspaceOverride)
     {
         if (!contextVk->hasActiveRenderPass())
         {
@@ -981,11 +990,6 @@ angle::Result FramebufferVk::readPixels(const gl::Context *context,
                              getReadPixelsRenderTarget(format),
                              static_cast<uint8_t *>(pixels) + outputSkipBytes));
     return angle::Result::Continue;
-}
-
-RenderTargetVk *FramebufferVk::getDepthStencilRenderTarget() const
-{
-    return mRenderTargetCache.getDepthStencil();
 }
 
 RenderTargetVk *FramebufferVk::getColorDrawRenderTarget(size_t colorIndexGL) const
@@ -1360,11 +1364,13 @@ angle::Result FramebufferVk::blit(const gl::Context *context,
         bool canBlitWithCommand =
             !isColorResolve && noClip && (noFlip || !disableFlippingBlitWithCommand) &&
             HasSrcBlitFeature(renderer, readRenderTarget) && rotation == SurfaceRotation::Identity;
-        // If we need to reinterpret the colorspace then the blit must be done through a shader
-        bool reinterpretsColorspace =
-            mCurrentFramebufferDesc.getWriteControlMode() != gl::SrgbWriteControlMode::Default;
-        bool areChannelsBlitCompatible = true;
-        bool areFormatsIdentical       = true;
+
+        // If we need to reinterpret the colorspace of the read RenderTarget then the blit must be
+        // done through a shader
+        bool reinterpretsColorspace      = readRenderTarget->hasColorspaceOverrideForRead();
+        bool areChannelsBlitCompatible   = true;
+        bool areFormatsIdentical         = true;
+        bool colorAttachmentAlreadyInUse = false;
         for (size_t colorIndexGL : mState.getEnabledDrawBuffers())
         {
             RenderTargetVk *drawRenderTarget = mRenderTargetCache.getColors()[colorIndexGL];
@@ -1375,6 +1381,17 @@ angle::Result FramebufferVk::blit(const gl::Context *context,
                 AreSrcAndDstColorChannelsBlitCompatible(readRenderTarget, drawRenderTarget);
             areFormatsIdentical = areFormatsIdentical &&
                                   AreSrcAndDstFormatsIdentical(readRenderTarget, drawRenderTarget);
+
+            // If any color attachment of the draw framebuffer was already in use in the currently
+            // started renderpass, don't reuse the renderpass for blit.
+            colorAttachmentAlreadyInUse =
+                colorAttachmentAlreadyInUse || contextVk->isRenderPassStartedAndUsesImage(
+                                                   drawRenderTarget->getImageForRenderPass());
+
+            // If we need to reinterpret the colorspace of the draw RenderTarget then the blit must
+            // be done through a shader
+            reinterpretsColorspace =
+                reinterpretsColorspace || drawRenderTarget->hasColorspaceOverrideForWrite();
         }
 
         // Now that all flipping is done, adjust the offsets for resolve and prerotation
@@ -1412,12 +1429,6 @@ angle::Result FramebufferVk::blit(const gl::Context *context,
             // renderer), so there's no chance for the resolve attachment to take advantage of the
             // data already being present in the tile.
 
-            // glBlitFramebuffer() needs to copy the read color attachment to all enabled
-            // attachments in the draw framebuffer, but Vulkan requires a 1:1 relationship for
-            // multisample attachments to resolve attachments in the render pass subpass.  Due to
-            // this, we currently only support using resolve attachments when there is a single draw
-            // attachment enabled.
-            //
             // Additionally, when resolving with a resolve attachment, the src and destination
             // offsets must match, the render area must match the resolve area, and there should be
             // no flipping or rotation.  Fortunately, in GLES the blit source and destination areas
@@ -1427,7 +1438,8 @@ angle::Result FramebufferVk::blit(const gl::Context *context,
             bool canResolveWithSubpass = mState.getEnabledDrawBuffers().count() == 1 &&
                                          mCurrentFramebufferDesc.getLayerCount() == 1 &&
                                          contextVk->hasStartedRenderPassWithQueueSerial(
-                                             srcFramebufferVk->getLastRenderPassQueueSerial());
+                                             srcFramebufferVk->getLastRenderPassQueueSerial()) &&
+                                         !colorAttachmentAlreadyInUse;
 
             if (canResolveWithSubpass)
             {
@@ -1522,6 +1534,8 @@ angle::Result FramebufferVk::blit(const gl::Context *context,
                 areChannelsBlitCompatible && mCurrentFramebufferDesc.getLayerCount() == 1 &&
                 contextVk->hasStartedRenderPassWithQueueSerial(
                     srcFramebufferVk->getLastRenderPassQueueSerial()) &&
+                !contextVk->isRenderPassStartedAndUsesImage(
+                    drawRenderTarget->getImageForRenderPass()) &&
                 noFlip && rotation == SurfaceRotation::Identity;
 
             if (canResolveWithSubpass)
@@ -1572,32 +1586,20 @@ angle::Result FramebufferVk::blit(const gl::Context *context,
                 AdjustBlitResolveParametersForPreRotation(rotation, srcFramebufferRotation,
                                                           &params);
 
-                // Create depth- and stencil-only views for reading.
-                vk::DeviceScoped<vk::ImageView> depthView(contextVk->getDevice());
-                vk::DeviceScoped<vk::ImageView> stencilView(contextVk->getDevice());
-
-                vk::LevelIndex levelIndex =
-                    depthStencilImage->toVkLevel(readRenderTarget->getLevelIndex());
-                uint32_t layerIndex         = readRenderTarget->getLayerIndex();
-                gl::TextureType textureType = vk::Get2DTextureType(
-                    depthStencilImage->getLayerCount(), depthStencilImage->getSamples());
+                // Get depth- and stencil-only views for reading.
+                const vk::ImageView *depthView   = nullptr;
+                const vk::ImageView *stencilView = nullptr;
 
                 if (blitDepthBuffer)
                 {
-                    ANGLE_TRY(depthStencilImage->initLayerImageView(
-                        contextVk, textureType, VK_IMAGE_ASPECT_DEPTH_BIT, gl::SwizzleState(),
-                        &depthView.get(), levelIndex, 1, layerIndex, 1,
-                        gl::SrgbWriteControlMode::Default, gl::YuvSamplingMode::Default,
-                        vk::ImageHelper::kDefaultImageViewUsageFlags));
+                    ANGLE_TRY(readRenderTarget->getDepthOrStencilImageViewForCopy(
+                        contextVk, VK_IMAGE_ASPECT_DEPTH_BIT, &depthView));
                 }
 
                 if (blitStencilBuffer)
                 {
-                    ANGLE_TRY(depthStencilImage->initLayerImageView(
-                        contextVk, textureType, VK_IMAGE_ASPECT_STENCIL_BIT, gl::SwizzleState(),
-                        &stencilView.get(), levelIndex, 1, layerIndex, 1,
-                        gl::SrgbWriteControlMode::Default, gl::YuvSamplingMode::Default,
-                        vk::ImageHelper::kDefaultImageViewUsageFlags));
+                    ANGLE_TRY(readRenderTarget->getDepthOrStencilImageViewForCopy(
+                        contextVk, VK_IMAGE_ASPECT_STENCIL_BIT, &stencilView));
                 }
 
                 // If shader stencil export is not possible, defer stencil blit/resolve to another
@@ -1608,12 +1610,9 @@ angle::Result FramebufferVk::blit(const gl::Context *context,
                 // Blit depth. If shader stencil export is present, blit stencil as well.
                 if (blitDepthBuffer || (blitStencilBuffer && hasShaderStencilExport))
                 {
-                    const vk::ImageView *depth = blitDepthBuffer ? &depthView.get() : nullptr;
-                    const vk::ImageView *stencil =
-                        blitStencilBuffer && hasShaderStencilExport ? &stencilView.get() : nullptr;
-
-                    ANGLE_TRY(utilsVk.depthStencilBlitResolve(contextVk, this, depthStencilImage,
-                                                              depth, stencil, params));
+                    ANGLE_TRY(utilsVk.depthStencilBlitResolve(
+                        contextVk, this, depthStencilImage, depthView,
+                        hasShaderStencilExport ? stencilView : nullptr, params));
                 }
 
                 // If shader stencil export is not present, blit stencil through a different path.
@@ -1624,14 +1623,8 @@ angle::Result FramebufferVk::blit(const gl::Context *context,
                         "Inefficient BlitFramebuffer operation on the stencil aspect "
                         "due to lack of shader stencil export support");
                     ANGLE_TRY(utilsVk.stencilBlitResolveNoShaderExport(
-                        contextVk, this, depthStencilImage, &stencilView.get(), params));
+                        contextVk, this, depthStencilImage, stencilView, params));
                 }
-
-                vk::ImageView depthViewObject   = depthView.release();
-                vk::ImageView stencilViewObject = stencilView.release();
-
-                contextVk->addGarbage(&depthViewObject);
-                contextVk->addGarbage(&stencilViewObject);
             }
         }
     }
@@ -1707,14 +1700,21 @@ angle::Result FramebufferVk::ensureFragmentShadingRateImageAndViewInitialized(
 
     if (!mFragmentShadingRateImage.valid())
     {
+        VkImageUsageFlags imageUsageFlags =
+            VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR |
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        // Add storage usage iff we intend to generate data using compute shader
+        if (!contextVk->getFeatures().generateFragmentShadingRateAttchementWithCpu.enabled)
+        {
+            imageUsageFlags |= VK_IMAGE_USAGE_STORAGE_BIT;
+        }
+
         ANGLE_TRY(mFragmentShadingRateImage.init(
             contextVk, gl::TextureType::_2D,
             VkExtent3D{fragmentShadingRateAttachmentWidth, fragmentShadingRateAttachmentHeight, 1},
-            renderer->getFormat(angle::FormatID::R8_UINT), 1,
-            VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR |
-                VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-            gl::LevelIndex(0), 1, 1, false,
-            contextVk->getProtectionType() == vk::ProtectionType::Protected));
+            renderer->getFormat(angle::FormatID::R8_UINT), 1, imageUsageFlags, gl::LevelIndex(0), 1,
+            1, false, contextVk->getProtectionType() == vk::ProtectionType::Protected));
+
         ANGLE_TRY(contextVk->initImageAllocation(
             &mFragmentShadingRateImage, false, renderer->getMemoryProperties(),
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk::MemoryAllocationType::TextureImage));
@@ -1729,7 +1729,6 @@ angle::Result FramebufferVk::ensureFragmentShadingRateImageAndViewInitialized(
 
 angle::Result FramebufferVk::generateFragmentShadingRateWithCPU(
     ContextVk *contextVk,
-    const bool isGainZero,
     const uint32_t fragmentShadingRateWidth,
     const uint32_t fragmentShadingRateHeight,
     const uint32_t fragmentShadingRateBlockWidth,
@@ -1752,79 +1751,77 @@ angle::Result FramebufferVk::generateFragmentShadingRateWithCPU(
     ANGLE_TRY(buffer->map(contextVk, &mappedBuffer));
     uint8_t val = 0;
     memset(mappedBuffer, 0, bufferSize);
-    if (!isGainZero)
+
+    // The spec requires min_pixel_density to be computed thusly -
+    //
+    // min_pixel_density=0.;
+    // for(int i=0;i<focalPointsPerLayer;++i)
+    // {
+    //     focal_point_density = 1./max((focalX[i]-px)^2*gainX[i]^2+
+    //                         (focalY[i]-py)^2*gainY[i]^2-foveaArea[i],1.);
+    //
+    //     min_pixel_density=max(min_pixel_density,focal_point_density);
+    // }
+    float minPixelDensity   = 0.0f;
+    float focalPointDensity = 0.0f;
+    for (uint32_t y = 0; y < fragmentShadingRateHeight; y++)
     {
-        // The spec requires min_pixel_density to be computed thusly -
-        //
-        // min_pixel_density=0.;
-        // for(int i=0;i<focalPointsPerLayer;++i)
-        // {
-        //     focal_point_density = 1./max((focalX[i]-px)^2*gainX[i]^2+
-        //                         (focalY[i]-py)^2*gainY[i]^2-foveaArea[i],1.);
-        //
-        //     min_pixel_density=max(min_pixel_density,focal_point_density);
-        // }
-        float minPixelDensity   = 0.0f;
-        float focalPointDensity = 0.0f;
-        for (uint32_t y = 0; y < fragmentShadingRateHeight; y++)
+        for (uint32_t x = 0; x < fragmentShadingRateWidth; x++)
         {
-            for (uint32_t x = 0; x < fragmentShadingRateWidth; x++)
+            minPixelDensity = 0.0f;
+            float px =
+                (static_cast<float>(x) * fragmentShadingRateBlockWidth / foveatedAttachmentWidth -
+                 0.5f) *
+                2.0f;
+            float py =
+                (static_cast<float>(y) * fragmentShadingRateBlockHeight / foveatedAttachmentHeight -
+                 0.5f) *
+                2.0f;
+            focalPointDensity = 0.0f;
+            for (const gl::FocalPoint &focalPoint : activeFocalPoints)
             {
-                minPixelDensity = 0.0f;
-                float px        = (static_cast<float>(x) * fragmentShadingRateBlockWidth /
-                                foveatedAttachmentWidth -
-                            0.5f) *
-                           2.0f;
-                float py = (static_cast<float>(y) * fragmentShadingRateBlockHeight /
-                                foveatedAttachmentHeight -
-                            0.5f) *
-                           2.0f;
-                focalPointDensity = 0.0f;
-                for (uint32_t point = 0; point < activeFocalPoints.size(); point++)
-                {
-                    float density =
-                        1.0f / std::max(std::pow(activeFocalPoints[point].focalX - px, 2.0f) *
-                                                std::pow(activeFocalPoints[point].gainX, 2.0f) +
-                                            std::pow(activeFocalPoints[point].focalY - py, 2.0f) *
-                                                std::pow(activeFocalPoints[point].gainY, 2.0f) -
-                                            activeFocalPoints[point].foveaArea,
-                                        1.0f);
+                float density = 1.0f / std::max(std::pow(focalPoint.focalX - px, 2.0f) *
+                                                        std::pow(focalPoint.gainX, 2.0f) +
+                                                    std::pow(focalPoint.focalY - py, 2.0f) *
+                                                        std::pow(focalPoint.gainY, 2.0f) -
+                                                    focalPoint.foveaArea,
+                                                1.0f);
 
-                    // When focal points are overlapping choose the highest quality of all
-                    if (density > focalPointDensity)
-                    {
-                        focalPointDensity = density;
-                    }
-                }
-                minPixelDensity = std::max(minPixelDensity, focalPointDensity);
-
-                // https://docs.vulkan.org/spec/latest/chapters/primsrast.html#primsrast-fragment-shading-rate-attachment
-                //
-                // w = 2^((texel/4) & 3)
-                // h = 2^(texel & 3)
-                // `texel` would then be => log2(w) << 2 | log2(h).
-                //
-                // 1) The supported shading rates are - 1x1, 1x2, 2x1, 2x2
-                // 2) log2(1) == 0, log2(2) == 1
-                if (minPixelDensity > 0.75f)
+                // When focal points are overlapping choose the highest quality of all
+                if (density > focalPointDensity)
                 {
-                    // Use shading rate 1x1
-                    val = 0;
+                    focalPointDensity = density;
                 }
-                else if (minPixelDensity > 0.5f)
-                {
-                    // Use shading rate 2x1
-                    val = (1 << 2);
-                }
-                else
-                {
-                    // Use shading rate 2x2
-                    val = (1 << 2) | 1;
-                }
-                mappedBuffer[y * fragmentShadingRateWidth + x] = val;
             }
+            minPixelDensity = std::max(minPixelDensity, focalPointDensity);
+
+            // https://docs.vulkan.org/spec/latest/chapters/primsrast.html#primsrast-fragment-shading-rate-attachment
+            //
+            // w = 2^((texel/4) & 3)
+            // h = 2^(texel & 3)
+            // `texel` would then be => log2(w) << 2 | log2(h).
+            //
+            // 1) The supported shading rates are - 1x1, 1x2, 2x1, 2x2
+            // 2) log2(1) == 0, log2(2) == 1
+            if (minPixelDensity > 0.75f)
+            {
+                // Use shading rate 1x1
+                val = 0;
+            }
+            else if (minPixelDensity > 0.5f)
+            {
+                // Use shading rate 2x1
+                val = (1 << 2);
+            }
+            else
+            {
+                // Use shading rate 2x2
+                val = (1 << 2) | 1;
+            }
+            mappedBuffer[y * fragmentShadingRateWidth + x] = val;
         }
     }
+
     ANGLE_TRY(buffer->flush(contextVk->getRenderer(), 0, buffer->getSize()));
     buffer->unmap(contextVk->getRenderer());
     // copy data from staging buffer to image
@@ -1847,6 +1844,38 @@ angle::Result FramebufferVk::generateFragmentShadingRateWithCPU(
     return angle::Result::Continue;
 }
 
+angle::Result FramebufferVk::generateFragmentShadingRateWithCompute(
+    ContextVk *contextVk,
+    const uint32_t fragmentShadingRateWidth,
+    const uint32_t fragmentShadingRateHeight,
+    const uint32_t fragmentShadingRateBlockWidth,
+    const uint32_t fragmentShadingRateBlockHeight,
+    const uint32_t foveatedAttachmentWidth,
+    const uint32_t foveatedAttachmentHeight,
+    const std::vector<gl::FocalPoint> &activeFocalPoints)
+{
+    ASSERT(activeFocalPoints.size() < gl::IMPLEMENTATION_MAX_FOCAL_POINTS);
+
+    UtilsVk::GenerateFragmentShadingRateParameters shadingRateParams;
+    shadingRateParams.textureWidth          = foveatedAttachmentWidth;
+    shadingRateParams.textureHeight         = foveatedAttachmentHeight;
+    shadingRateParams.attachmentBlockWidth  = fragmentShadingRateBlockWidth;
+    shadingRateParams.attachmentBlockHeight = fragmentShadingRateBlockHeight;
+    shadingRateParams.attachmentWidth       = fragmentShadingRateWidth;
+    shadingRateParams.attachmentHeight      = fragmentShadingRateHeight;
+    shadingRateParams.numFocalPoints        = 0;
+
+    for (const gl::FocalPoint &focalPoint : activeFocalPoints)
+    {
+        ASSERT(focalPoint.valid());
+        shadingRateParams.focalPoints[shadingRateParams.numFocalPoints] = focalPoint;
+        shadingRateParams.numFocalPoints++;
+    }
+
+    return contextVk->getUtils().generateFragmentShadingRate(
+        contextVk, &mFragmentShadingRateImage, &mFragmentShadingRateImageView, shadingRateParams);
+}
+
 angle::Result FramebufferVk::updateFragmentShadingRateAttachment(
     ContextVk *contextVk,
     const gl::FoveationState &foveationState,
@@ -1867,22 +1896,33 @@ angle::Result FramebufferVk::updateFragmentShadingRateAttachment(
                                                                fragmentShadingRateHeight));
     ASSERT(mFragmentShadingRateImage.valid());
 
-    bool isGainZero = true;
     std::vector<gl::FocalPoint> activeFocalPoints;
     for (uint32_t point = 0; point < gl::IMPLEMENTATION_MAX_FOCAL_POINTS; point++)
     {
         const gl::FocalPoint &focalPoint = foveationState.getFocalPoint(0, point);
-        if (focalPoint != gl::kInvalidFocalPoint)
+        if (focalPoint.valid())
         {
-            isGainZero = isGainZero && focalPoint.gainX == 0 && focalPoint.gainY == 0;
             activeFocalPoints.push_back(focalPoint);
         }
     }
+    ASSERT(activeFocalPoints.size() > 0);
 
-    return generateFragmentShadingRateWithCPU(
-        contextVk, isGainZero, fragmentShadingRateWidth, fragmentShadingRateHeight,
-        fragmentShadingRateBlockWidth, fragmentShadingRateBlockHeight, foveatedAttachmentWidth,
-        foveatedAttachmentHeight, activeFocalPoints);
+    if (contextVk->getFeatures().generateFragmentShadingRateAttchementWithCpu.enabled)
+    {
+        ANGLE_TRY(generateFragmentShadingRateWithCPU(
+            contextVk, fragmentShadingRateWidth, fragmentShadingRateHeight,
+            fragmentShadingRateBlockWidth, fragmentShadingRateBlockHeight, foveatedAttachmentWidth,
+            foveatedAttachmentHeight, activeFocalPoints));
+    }
+    else
+    {
+        ANGLE_TRY(generateFragmentShadingRateWithCompute(
+            contextVk, fragmentShadingRateWidth, fragmentShadingRateHeight,
+            fragmentShadingRateBlockWidth, fragmentShadingRateBlockHeight, foveatedAttachmentWidth,
+            foveatedAttachmentHeight, activeFocalPoints));
+    }
+
+    return angle::Result::Continue;
 }
 
 angle::Result FramebufferVk::updateFoveationState(ContextVk *contextVk,
@@ -1897,9 +1937,8 @@ angle::Result FramebufferVk::updateFoveationState(ContextVk *contextVk,
                                                       foveatedAttachmentSize));
         ASSERT(mFragmentShadingRateImage.valid());
 
-        serial = mFragmentShadingRateImageView.getSubresourceSerial(
-            gl::LevelIndex(0), 1, 0, vk::LayerMode::All, vk::SrgbDecodeMode::SkipDecode,
-            gl::SrgbOverride::Default);
+        serial = mFragmentShadingRateImageView.getSubresourceSerial(gl::LevelIndex(0), 1, 0,
+                                                                    vk::LayerMode::All);
     }
 
     // Update state after the possible failure point.
@@ -2175,7 +2214,7 @@ angle::Result FramebufferVk::invalidateImpl(ContextVk *contextVk,
             if (invalidateStencilBuffer)
             {
                 contextVk->getStartedRenderPassCommands().invalidateRenderPassStencilAttachment(
-                    dsState, invalidateArea);
+                    dsState, mState.getStencilBitCount(), invalidateArea);
             }
         }
     }
@@ -2236,6 +2275,19 @@ angle::Result FramebufferVk::updateColorAttachment(const gl::Context *context,
     }
 
     return angle::Result::Continue;
+}
+
+void FramebufferVk::updateColorAttachmentColorspace(gl::SrgbWriteControlMode srgbWriteControlMode)
+{
+    // Update colorspace of color attachments.
+    const auto &colorRenderTargets               = mRenderTargetCache.getColors();
+    const gl::DrawBufferMask colorAttachmentMask = mState.getColorAttachmentsMask();
+    for (size_t colorIndexGL : colorAttachmentMask)
+    {
+        RenderTargetVk *colorRenderTarget = colorRenderTargets[colorIndexGL];
+        ASSERT(colorRenderTarget);
+        colorRenderTarget->updateWriteColorspace(srgbWriteControlMode);
+    }
 }
 
 angle::Result FramebufferVk::updateDepthStencilAttachment(const gl::Context *context)
@@ -2355,9 +2407,8 @@ angle::Result FramebufferVk::syncState(const gl::Context *context,
     gl::DrawBufferMask dirtyColorAttachments;
     bool dirtyDepthStencilAttachment = false;
 
-    bool shouldUpdateColorMaskAndBlend    = false;
-    bool shouldUpdateLayerCount           = false;
-    bool shouldUpdateSrgbWriteControlMode = false;
+    bool shouldUpdateColorMaskAndBlend = false;
+    bool shouldUpdateLayerCount        = false;
 
     // Cache new foveation state, if any
     const gl::FoveationState *newFoveationState = nullptr;
@@ -2393,7 +2444,6 @@ angle::Result FramebufferVk::syncState(const gl::Context *context,
                 releaseCurrentFramebuffer(contextVk);
                 break;
             case gl::Framebuffer::DIRTY_BIT_FRAMEBUFFER_SRGB_WRITE_CONTROL_MODE:
-                shouldUpdateSrgbWriteControlMode = true;
                 break;
             case gl::Framebuffer::DIRTY_BIT_DEFAULT_LAYERS:
                 shouldUpdateLayerCount = true;
@@ -2452,15 +2502,12 @@ angle::Result FramebufferVk::syncState(const gl::Context *context,
         }
     }
 
-    if (shouldUpdateSrgbWriteControlMode)
-    {
-        // Framebuffer colorspace state has been modified, so refresh the current framebuffer
-        // descriptor to reflect the new state.
-        gl::SrgbWriteControlMode newSrgbWriteControlMode = mState.getWriteControlMode();
-        mCurrentFramebufferDesc.setWriteControlMode(newSrgbWriteControlMode);
-        // mRenderPassDesc will be updated later in updateRenderPassDesc() in case if
-        // mCurrentFramebufferDesc was changed.
-    }
+    // A shared attachment's colospace could have been modified in another context, update
+    // colorspace of all attachments to reflect current context's colorspace.
+    gl::SrgbWriteControlMode srgbWriteControlMode = mState.getWriteControlMode();
+    updateColorAttachmentColorspace(srgbWriteControlMode);
+    // Update current framebuffer descriptor to reflect the new state.
+    mCurrentFramebufferDesc.setWriteControlMode(srgbWriteControlMode);
 
     if (shouldUpdateColorMaskAndBlend)
     {
@@ -2567,8 +2614,16 @@ void FramebufferVk::updateRenderPassDesc(ContextVk *contextVk)
             }
             else
             {
-                mRenderPassDesc.packColorAttachment(
-                    colorIndexGL, colorRenderTarget->getImageForRenderPass().getActualFormatID());
+                // Account for attachments with colorspace override
+                angle::FormatID actualFormat =
+                    colorRenderTarget->getImageForRenderPass().getActualFormatID();
+                if (colorRenderTarget->hasColorspaceOverrideForWrite())
+                {
+                    actualFormat =
+                        colorRenderTarget->getColorspaceOverrideFormatForWrite(actualFormat);
+                }
+
+                mRenderPassDesc.packColorAttachment(colorIndexGL, actualFormat);
                 // Add the resolve attachment, if any.
                 if (colorRenderTarget->hasResolveAttachment())
                 {
@@ -2597,9 +2652,10 @@ void FramebufferVk::updateRenderPassDesc(ContextVk *contextVk)
         }
     }
 
-    if (contextVk->isInFramebufferFetchMode())
+    if (!contextVk->getFeatures().preferDynamicRendering.enabled &&
+        contextVk->isInColorFramebufferFetchMode())
     {
-        mRenderPassDesc.setFramebufferFetchMode(true);
+        mRenderPassDesc.setFramebufferFetchMode(vk::FramebufferFetchMode::Color);
     }
 
     if (contextVk->getFeatures().enableMultisampledRenderToTexture.enabled)
@@ -2884,7 +2940,9 @@ angle::Result FramebufferVk::createNewFramebuffer(
 angle::Result FramebufferVk::getFramebuffer(ContextVk *contextVk,
                                             vk::RenderPassFramebuffer *framebufferOut)
 {
-    ASSERT(mCurrentFramebufferDesc.hasFramebufferFetch() == mRenderPassDesc.hasFramebufferFetch());
+    ASSERT(!mRenderPassDesc.hasDepthStencilFramebufferFetch());
+    ASSERT(mCurrentFramebufferDesc.hasColorFramebufferFetch() ==
+           mRenderPassDesc.hasColorFramebufferFetch());
 
     const gl::Extents attachmentsSize = mState.getExtents();
     ASSERT(attachmentsSize.width != 0 && attachmentsSize.height != 0);
@@ -2935,8 +2993,8 @@ angle::Result FramebufferVk::getFramebuffer(ContextVk *contextVk,
             // If there is a backbuffer, query the framebuffer from WindowSurfaceVk instead.
             ANGLE_TRY(mBackbuffer->getCurrentFramebuffer(
                 contextVk,
-                mRenderPassDesc.hasFramebufferFetch() ? FramebufferFetchMode::Enabled
-                                                      : FramebufferFetchMode::Disabled,
+                mRenderPassDesc.hasColorFramebufferFetch() ? vk::FramebufferFetchMode::Color
+                                                           : vk::FramebufferFetchMode::None,
                 *compatibleRenderPass, &framebufferHandle));
         }
     }
@@ -3376,8 +3434,7 @@ angle::Result FramebufferVk::startNewRenderPass(ContextVk *contextVk,
         if (mDeferredClears.test(colorIndexGL))
         {
             renderPassAttachmentOps.setOps(colorIndexVk, vk::RenderPassLoadOp::Clear, storeOp);
-            packedClearValues.store(colorIndexVk, VK_IMAGE_ASPECT_COLOR_BIT,
-                                    mDeferredClears[colorIndexGL]);
+            packedClearValues.storeColor(colorIndexVk, mDeferredClears[colorIndexGL]);
             mDeferredClears.reset(colorIndexGL);
         }
         else
@@ -3387,8 +3444,7 @@ angle::Result FramebufferVk::startNewRenderPass(ContextVk *contextVk,
                                                     : vk::RenderPassLoadOp::DontCare;
 
             renderPassAttachmentOps.setOps(colorIndexVk, loadOp, storeOp);
-            packedClearValues.store(colorIndexVk, VK_IMAGE_ASPECT_COLOR_BIT,
-                                    kUninitializedClearValue);
+            packedClearValues.storeColor(colorIndexVk, kUninitializedClearValue);
         }
         renderPassAttachmentOps.setStencilOps(colorIndexVk, vk::RenderPassLoadOp::DontCare,
                                               vk::RenderPassStoreOp::DontCare);
@@ -3476,15 +3532,12 @@ angle::Result FramebufferVk::startNewRenderPass(ContextVk *contextVk,
                 mDeferredClears.reset(vk::kUnpackedStencilIndex);
             }
 
-            // Note the aspect is only depth here. That's intentional.
-            packedClearValues.store(depthStencilAttachmentIndex, VK_IMAGE_ASPECT_DEPTH_BIT,
-                                    clearValue);
+            packedClearValues.storeDepthStencil(depthStencilAttachmentIndex, clearValue);
         }
         else
         {
-            // Note the aspect is only depth here. That's intentional.
-            packedClearValues.store(depthStencilAttachmentIndex, VK_IMAGE_ASPECT_DEPTH_BIT,
-                                    kUninitializedClearValue);
+            packedClearValues.storeDepthStencil(depthStencilAttachmentIndex,
+                                                kUninitializedClearValue);
         }
 
         const angle::Format &format = depthStencilRenderTarget->getImageIntendedFormat();
@@ -3520,15 +3573,13 @@ angle::Result FramebufferVk::startNewRenderPass(ContextVk *contextVk,
 
                 // If VK_EXT_shader_stencil_export is not supported, stencil unresolve is done
                 // through a method that requires stencil to have been cleared.
-                if (!contextVk->getRenderer()->getFeatures().supportsShaderStencilExport.enabled)
+                if (!contextVk->getFeatures().supportsShaderStencilExport.enabled)
                 {
                     stencilLoadOp = vk::RenderPassLoadOp::Clear;
 
-                    // Note the aspect is only depth here. That's intentional.
                     VkClearValue clearValue = packedClearValues[depthStencilAttachmentIndex];
                     clearValue.depthStencil.stencil = 0;
-                    packedClearValues.store(depthStencilAttachmentIndex, VK_IMAGE_ASPECT_DEPTH_BIT,
-                                            clearValue);
+                    packedClearValues.storeDepthStencil(depthStencilAttachmentIndex, clearValue);
                 }
             }
 
@@ -3678,14 +3729,6 @@ gl::Extents FramebufferVk::getReadImageExtents() const
     return readRenderTarget->getExtents();
 }
 
-// Return the framebuffer's non-rotated render area.  This is a gl::Rectangle that is based on the
-// dimensions of the framebuffer, IS NOT rotated, and IS NOT y-flipped
-gl::Rectangle FramebufferVk::getNonRotatedCompleteRenderArea() const
-{
-    const gl::Box &dimensions = mState.getDimensions();
-    return gl::Rectangle(0, 0, dimensions.width, dimensions.height);
-}
-
 // Return the framebuffer's rotated render area.  This is a gl::Rectangle that is based on the
 // dimensions of the framebuffer, IS ROTATED for the draw FBO, and IS NOT y-flipped
 //
@@ -3750,6 +3793,55 @@ GLint FramebufferVk::getSamples() const
     return std::max(lastAttachment ? lastAttachment->getSamples() : 1, 1);
 }
 
+angle::Result FramebufferVk::flushDepthStencilDeferredClear(ContextVk *contextVk,
+                                                            VkImageAspectFlagBits aspect)
+{
+    const bool isDepth = aspect == VK_IMAGE_ASPECT_DEPTH_BIT;
+
+    // Pick out the deferred clear for the given aspect, and issue it ahead of the render pass.
+    // This is used when switching this aspect to read-only mode, in which case the clear operation
+    // for the aspect cannot be done as part of the render pass loadOp.
+    ASSERT(!isDepth || hasDeferredDepthClear());
+    ASSERT(isDepth || hasDeferredStencilClear());
+    ASSERT(mState.getDepthOrStencilAttachment() != nullptr);
+
+    RenderTargetVk *renderTarget = getDepthStencilRenderTarget();
+    vk::ImageHelper &image       = renderTarget->getImageForCopy();
+
+    // Depth/stencil attachments cannot be 3D.
+    ASSERT(!renderTarget->is3DImage());
+
+    vk::CommandBufferAccess access;
+    access.onImageTransferWrite(renderTarget->getLevelIndex(), 1, renderTarget->getLayerIndex(), 1,
+                                image.getAspectFlags(), &image);
+    vk::OutsideRenderPassCommandBuffer *commandBuffer;
+    ANGLE_TRY(contextVk->getOutsideRenderPassCommandBuffer(access, &commandBuffer));
+
+    VkImageSubresourceRange range = {};
+    range.aspectMask              = aspect;
+    range.baseMipLevel            = image.toVkLevel(renderTarget->getLevelIndex()).get();
+    range.levelCount              = 1;
+    range.baseArrayLayer          = renderTarget->getLayerIndex();
+    range.layerCount              = 1;
+
+    VkClearDepthStencilValue clearValue = {};
+
+    if (isDepth)
+    {
+        clearValue.depth = mDeferredClears.getDepthValue();
+        mDeferredClears.reset(vk::kUnpackedDepthIndex);
+    }
+    else
+    {
+        clearValue.stencil = mDeferredClears.getStencilValue();
+        mDeferredClears.reset(vk::kUnpackedStencilIndex);
+    }
+
+    commandBuffer->clearDepthStencilImage(
+        image.getImage(), image.getCurrentLayout(contextVk->getRenderer()), clearValue, 1, &range);
+    return angle::Result::Continue;
+}
+
 angle::Result FramebufferVk::flushDeferredClears(ContextVk *contextVk)
 {
     if (mDeferredClears.empty())
@@ -3760,32 +3852,25 @@ angle::Result FramebufferVk::flushDeferredClears(ContextVk *contextVk)
     return contextVk->startRenderPass(getRotatedCompleteRenderArea(contextVk), nullptr, nullptr);
 }
 
-void FramebufferVk::switchToFramebufferFetchMode(ContextVk *contextVk, bool hasFramebufferFetch)
+void FramebufferVk::switchToColorFramebufferFetchMode(ContextVk *contextVk,
+                                                      bool hasColorFramebufferFetch)
 {
+    // Framebuffer fetch use by the shader does not affect the framebuffer object in any way with
+    // dynamic rendering.
+    ASSERT(!contextVk->getFeatures().preferDynamicRendering.enabled);
+
     // The switch happens once, and is permanent.
-    if (mCurrentFramebufferDesc.hasFramebufferFetch() == hasFramebufferFetch)
+    if (mCurrentFramebufferDesc.hasColorFramebufferFetch() == hasColorFramebufferFetch)
     {
         return;
     }
 
-    mCurrentFramebufferDesc.setFramebufferFetchMode(hasFramebufferFetch);
+    mCurrentFramebufferDesc.setColorFramebufferFetchMode(hasColorFramebufferFetch);
 
-    mRenderPassDesc.setFramebufferFetchMode(hasFramebufferFetch);
+    mRenderPassDesc.setFramebufferFetchMode(hasColorFramebufferFetch
+                                                ? vk::FramebufferFetchMode::Color
+                                                : vk::FramebufferFetchMode::None);
     contextVk->onDrawFramebufferRenderPassDescChange(this, nullptr);
-
-    if (contextVk->getFeatures().preferDynamicRendering.enabled)
-    {
-        // Note: with dynamic rendering, |onDrawFramebufferRenderPassDescChange| is really
-        // unnecessary, but is called for simplicity.  The downside is unnecessary recreation of
-        // pipelines, which is mitigated by |permanentlySwitchToFramebufferFetchMode| which is
-        // automatically enabled with |preferDynamicRendering|.
-        //
-        // If |onDrawFramebufferRenderPassDescChange| is to be optimized away, care must be taken
-        // as GraphicsPipelineDesc::mRenderPassDesc::mHasFramebufferFetch can get out of sync with
-        // FramebufferDesc::mHasFramebufferFetch, and
-        // RenderPassCommandBufferHelper::mRenderPassDesc::mHasFramebufferFetch.
-        return;
-    }
 
     // Make sure framebuffer is recreated.
     releaseCurrentFramebuffer(contextVk);
@@ -3793,7 +3878,7 @@ void FramebufferVk::switchToFramebufferFetchMode(ContextVk *contextVk, bool hasF
     // Clear the framebuffer cache, as none of the old framebuffers are usable.
     if (contextVk->getFeatures().permanentlySwitchToFramebufferFetchMode.enabled)
     {
-        ASSERT(hasFramebufferFetch);
+        ASSERT(hasColorFramebufferFetch);
         releaseCurrentFramebuffer(contextVk);
     }
 }

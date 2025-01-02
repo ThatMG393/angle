@@ -30,6 +30,62 @@
 #include <memory>
 #include <unordered_map>
 
+namespace angle
+{
+template <typename T>
+struct Extents
+{
+    Extents() : width(0), height(0), depth(0) {}
+    Extents(T width_, T height_, T depth_) : width(width_), height(height_), depth(depth_) {}
+
+    Extents(const Extents &other)            = default;
+    Extents &operator=(const Extents &other) = default;
+
+    bool empty() const { return (width * height * depth) == 0; }
+
+    T width;
+    T height;
+    T depth;
+};
+
+template <typename T>
+struct Offset
+{
+  public:
+    constexpr Offset() : x(0), y(0), z(0) {}
+    constexpr Offset(T x_in, T y_in, T z_in) : x(x_in), y(y_in), z(z_in) {}
+
+    T x;
+    T y;
+    T z;
+};
+
+template <typename T>
+inline bool operator==(const Extents<T> &lhs, const Extents<T> &rhs)
+{
+    return lhs.width == rhs.width && lhs.height == rhs.height && lhs.depth == rhs.depth;
+}
+
+template <typename T>
+inline bool operator!=(const Extents<T> &lhs, const Extents<T> &rhs)
+{
+    return !(lhs == rhs);
+}
+
+template <typename T>
+inline bool operator==(const Offset<T> &a, const Offset<T> &b)
+{
+    return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+template <typename T>
+inline bool operator!=(const Offset<T> &a, const Offset<T> &b)
+{
+    return !(a == b);
+}
+
+}  // namespace angle
+
 namespace gl
 {
 class Buffer;
@@ -44,6 +100,7 @@ enum class Command
     Blit,
     BlitAll = Blit + 0x7,
     Clear,
+    ClearTexture,
     CopyImage,
     Dispatch,
     Draw,
@@ -158,38 +215,9 @@ void GetEnclosingRectangle(const Rectangle &rect1, const Rectangle &rect2, Recta
 //
 void ExtendRectangle(const Rectangle &source, const Rectangle &extend, Rectangle *extended);
 
-struct Offset
-{
-    constexpr Offset() : x(0), y(0), z(0) {}
-    constexpr Offset(int x_in, int y_in, int z_in) : x(x_in), y(y_in), z(z_in) {}
-
-    int x;
-    int y;
-    int z;
-};
-
+using Extents = angle::Extents<int>;
+using Offset  = angle::Offset<int>;
 constexpr Offset kOffsetZero(0, 0, 0);
-
-bool operator==(const Offset &a, const Offset &b);
-bool operator!=(const Offset &a, const Offset &b);
-
-struct Extents
-{
-    Extents() : width(0), height(0), depth(0) {}
-    Extents(int width_, int height_, int depth_) : width(width_), height(height_), depth(depth_) {}
-
-    Extents(const Extents &other)            = default;
-    Extents &operator=(const Extents &other) = default;
-
-    bool empty() const { return (width * height * depth) == 0; }
-
-    int width;
-    int height;
-    int depth;
-};
-
-bool operator==(const Extents &lhs, const Extents &rhs);
-bool operator!=(const Extents &lhs, const Extents &rhs);
 
 struct Box
 {
@@ -300,9 +328,9 @@ struct DepthStencilState final
     DepthStencilState &operator=(const DepthStencilState &other);
 
     bool isDepthMaskedOut() const;
-    bool isStencilMaskedOut() const;
-    bool isStencilNoOp() const;
-    bool isStencilBackNoOp() const;
+    bool isStencilMaskedOut(GLuint framebufferStencilSize) const;
+    bool isStencilNoOp(GLuint framebufferStencilSize) const;
+    bool isStencilBackNoOp(GLuint framebufferStencilSize) const;
 
     bool depthTest;
     GLenum depthFunc;
@@ -1013,6 +1041,14 @@ ANGLE_INLINE DrawBufferMask GetIntOrUnsignedIntDrawBufferMask(ComponentTypeMask 
         static_cast<uint8_t>((mask.bits() >> kMaxComponentTypeMaskIndex) ^ mask.bits()));
 }
 
+// GL_ANGLE_blob_cache state
+struct BlobCacheCallbacks
+{
+    GLSETBLOBPROCANGLE setFunction = nullptr;
+    GLGETBLOBPROCANGLE getFunction = nullptr;
+    const void *userParam          = nullptr;
+};
+
 enum class RenderToTextureImageIndex
 {
     // The default image of the texture, where data is expected to be.
@@ -1279,7 +1315,9 @@ bool DecompressBlob(const uint8_t *compressedData,
                     const size_t compressedSize,
                     size_t maxUncompressedDataSize,
                     MemoryBuffer *uncompressedData);
-uint32_t GenerateCrc(const uint8_t *data, size_t size);
+uint32_t GenerateCRC32(const uint8_t *data, size_t size);
+uint32_t InitCRC32();
+uint32_t UpdateCRC32(uint32_t prevCrc32, const uint8_t *data, size_t size);
 }  // namespace angle
 
 namespace std
@@ -1337,10 +1375,9 @@ class UnlockedTailCall final : angle::NonCopyable
     // with unMakeCurrent destroying both the read and draw surfaces, each adding a tail call in the
     // Vulkan backend.
     //
-    // The max count can be increased as necessary.  An assertion would fire inside FixedVector if
-    // the max count is surpassed.
-    static constexpr size_t kMaxCallCount = 2;
-    angle::FixedVector<CallType, kMaxCallCount> mCalls;
+    // Some apps will create multiple windows surfaces and not call corresponding destroy api, which
+    // cause many tail calls been added, so remove the max call count limitations.
+    std::vector<CallType> mCalls;
 };
 
 enum class JobThreadSafety
@@ -1451,9 +1488,11 @@ struct FocalPoint
                gainY == other.gainY && foveaArea == other.foveaArea;
     }
     bool operator!=(const FocalPoint &other) const { return !(*this == other); }
+
+    bool valid() const { return gainX > 0 && gainY > 0; }
 };
 
-constexpr FocalPoint kInvalidFocalPoint = FocalPoint();
+constexpr FocalPoint kDefaultFocalPoint = FocalPoint();
 
 class FoveationState
 {
@@ -1463,7 +1502,7 @@ class FoveationState
         mConfigured          = false;
         mFoveatedFeatureBits = 0;
         mMinPixelDensity     = 0.0f;
-        mFocalPoints.fill(kInvalidFocalPoint);
+        mFocalPoints.fill(kDefaultFocalPoint);
     }
     FoveationState &operator=(const FoveationState &other) = default;
 
@@ -1471,10 +1510,9 @@ class FoveationState
     bool isConfigured() const { return mConfigured; }
     bool isFoveated() const
     {
-        // Consider foveated if ANY focal point is valid
-        return std::any_of(
-            mFocalPoints.begin(), mFocalPoints.end(),
-            [](const FocalPoint &focalPoint) { return (focalPoint != kInvalidFocalPoint); });
+        // Consider foveated if at least 1 focal point is valid
+        return std::any_of(mFocalPoints.begin(), mFocalPoints.end(),
+                           [](const FocalPoint &focalPoint) { return focalPoint.valid(); });
     }
     bool operator==(const FoveationState &other) const
     {

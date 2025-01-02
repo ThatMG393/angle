@@ -103,6 +103,11 @@ class ResourceUse final
         return mSerials.size() > queuSerial.getIndex() &&
                mSerials[queuSerial.getIndex()] > queuSerial.getSerial();
     }
+    bool operator>=(const QueueSerial &queueSerial) const
+    {
+        return mSerials.size() > queueSerial.getIndex() &&
+               mSerials[queueSerial.getIndex()] >= queueSerial.getSerial();
+    }
 
     // Returns true if all serials are less than or equal
     bool operator<=(const AtomicQueueSerialFixedArray &serials) const
@@ -231,7 +236,7 @@ class SharedGarbageList final : angle::NonCopyable
     void resetDestroyedGarbageSize() { mTotalGarbageDestroyed = 0; }
 
     // Number of bytes destroyed is returned.
-    void cleanupSubmittedGarbage(Renderer *renderer)
+    VkDeviceSize cleanupSubmittedGarbage(Renderer *renderer)
     {
         std::unique_lock<angle::SimpleMutex> lock(mSubmittedQueueDequeueMutex);
         VkDeviceSize bytesDestroyed = 0;
@@ -248,6 +253,7 @@ class SharedGarbageList final : angle::NonCopyable
         }
         mTotalSubmittedGarbageBytes -= bytesDestroyed;
         mTotalGarbageDestroyed += bytesDestroyed;
+        return bytesDestroyed;
     }
 
     // Check if pending garbage is still pending submission. If not, move them to the garbage list.
