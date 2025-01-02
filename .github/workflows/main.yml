@@ -64,14 +64,14 @@ jobs:
           path: |
             angle/.cipd
             angle/third_party
-            $GITHUB_WORKSPACE/depot_tools
+            depot_tools
           key: ${{ runner.os }}-angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
           restore-keys: |
             ${{ runner.os }}-angle-deps-${{ matrix.arch }}-
 
       - name: Get & Install depot_tools
         run: |
-          if [ ! -d "$GITHUB_WORKSPACE/depot_tools" ]; then
+          if [ ! -d "depot_tools" ]; then
             git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
             echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
           fi
@@ -101,35 +101,10 @@ jobs:
 
           android32_ndk_api_level = 26
 
-          use_lld = true
-          enable_lto = true
-
           symbol_level = 0
           strip_debug_info = true
           generate_debug_info = false
           enable_resource_allowlist_generation = false
-
-          ldflags = [ 
-            \"-Wl,--strip-all\", 
-            \"-Wl,--gc-sections\", 
-            \"-Ofast\",
-            \"-flto\",
-            \"-Wl,--strip-debug\"
-          ]
-          
-          cflags = [
-            \"-Ofast\",
-            \"-march=armv7-a+neon-vfpv4\",
-            \"-mtune=cortex-a55\",
-            \"-mfpu=neon-vfpv4\",
-            \"-mfloat-abi=softfp\",
-            \"-fomit-frame-pointer\",
-            \"-ffunction-sections\",
-            \"-fdata-sections\",
-            \"-ffast-math\",
-            \"-fno-exceptions\",
-            \"-fno-rtti\"
-          ]
           
           angle_enable_vulkan = true
           angle_vulkan_validation_layers = false
