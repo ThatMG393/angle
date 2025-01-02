@@ -13,6 +13,7 @@ jobs:
 
     steps:
       - name: Free up disk space
+        if: false
         uses: easimon/maximize-build-space@v10
         with:
           swap-size-mb: 1024
@@ -22,6 +23,7 @@ jobs:
           remove-docker-images: 'true'
 
       - name: Free up disk space P2
+        if: false
         run: |
           rm -rf *
 
