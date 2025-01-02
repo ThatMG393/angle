@@ -11,6 +11,10 @@ jobs:
     name: Build For Android (libraries and apks)
     runs-on: namespace-profile-default
 
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Free up disk space
         if: false
@@ -59,28 +63,26 @@ jobs:
           fetch-depth: 1
 
       - name: Cache Angle dependencies
-        uses: actions/cache@v4
+        id: angle-deps-cache
+        uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
             angle/.cipd
             angle/third_party
           key: ${{ runner.os }}-angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
-          restore-keys: |
-            ${{ runner.os }}-angle-deps-${{ matrix.arch }}-
-
+          
       - name: Get & Install depot_tools
         run: |
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
       
       - name: Setup Angle
+        if: steps.cache-output.outputs.cache-hit != 'true'
         run: |
           cd angle
-
-          if [ ! -d ".cipd" ] || [ ! -d "third_party" ]; then
-            vpython3 scripts/bootstrap.py
-            gclient sync
-          fi
+          
+          vpython3 scripts/bootstrap.py
+          gclient sync --no-history -v -j$(nproc)
 
       - name: Make GN arg
         run: |
