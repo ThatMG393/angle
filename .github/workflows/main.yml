@@ -82,21 +82,55 @@ jobs:
           is_component_build = false
           is_official_build = true
           is_debug = false
-          dcheck_always_on = false
-          angle_assert_always_on = false
-          symbol_level = 0
-          angle_build_all = false
+          angle_standalone = true
+          is_clang = true
+
           android32_ndk_api_level = 26
+
+          use_lld = true
+          enable_lto = true
+
+          symbol_level = 0
+          strip_debug_info = true
+          generate_debug_info = false
+
+           ldflags = [ 
+            "-Wl,--strip-all", 
+            "-Wl,--gc-sections", 
+            "-Ofast",
+            "-funroll-loops",
+            "-flto",
+            "-Wl,--strip-debug"
+          ]
+
+          cflags = [
+            "-Ofast",
+            "-march=armv7-a+neon-vfpv4",
+            "-mtune=cortex-a55",
+            "-mfpu=neon-vfpv4",
+            "-mfloat-abi=softfp",
+            "-fomit-frame-pointer",
+            "-ffunction-sections",
+            "-fdata-sections",
+            "-ffast-math",
+            "-fno-exceptions",
+            "-fno-rtti"
+          ]
+          
           angle_enable_vulkan = true
+          angle_vulkan_validation_layers = false
+
+          angle_enable_essl = true
+          angle_enable_glsl = true
+          angle_enable_hlsl = true
+
           angle_enable_gl = false
           angle_enable_d3d9 = false
           angle_enable_d3d11 = false
           angle_enable_null = false
           angle_enable_metal = false
           angle_enable_swiftshader = false
-          angle_enable_essl = true
-          angle_enable_glsl = true
-          angle_enable_hlsl = true
+
           angle_expose_non_conformant_extensions_and_versions = true
           angle_has_histograms = false
           angle_has_rapidjson = false" >> out/Android-${{matrix.arch}}/args.gn
