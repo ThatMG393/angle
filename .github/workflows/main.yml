@@ -83,12 +83,12 @@ jobs:
       - name: Build Angle (libraries)
         run: |
           cd angle
-          autoninja -C out/Android-${{matrix.arch}}
+          autoninja -j$(nproc) -C out/Android-${{matrix.arch}}
 
       - name: Build Angle (apk)
         run: |
           cd angle
-          autoninja -C out/Android-${{matrix.arch}} angle_apks
+          autoninja -j$(nproc) -C out/Android-${{matrix.arch}} angle_apks
 
       - name: Upload Build Outputs (apk)
         uses: actions/upload-artifact@v4
