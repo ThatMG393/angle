@@ -79,7 +79,6 @@ jobs:
           echo "target_os = \"android\"
           target_cpu = \"${{matrix.arch}}\"
           is_component_build = false
-          is_official_build = true
           is_debug = false
           angle_standalone = true
           is_clang = true
