@@ -64,17 +64,14 @@ jobs:
           path: |
             angle/.cipd
             angle/third_party
-            depot_tools
           key: ${{ runner.os }}-angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
           restore-keys: |
             ${{ runner.os }}-angle-deps-${{ matrix.arch }}-
 
       - name: Get & Install depot_tools
         run: |
-          if [ ! -d "depot_tools" ]; then
-            git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
-            echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
-          fi
+          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
       
       - name: Setup Angle
         run: |
@@ -134,11 +131,19 @@ jobs:
           cd angle
           autoninja -C out/Android-${{matrix.arch}} angle_apks
 
-      - name: Upload Build Outputs
+      - name: Upload Build Outputs (apk)
         uses: actions/upload-artifact@v4
         with:
-          name: out-${{matrix.arch}}
+          name: apks-${{matrix.arch}}
           path: |
-            angle/out/Android-${{matrix.arch}}
+            angle/out/Android-${{matrix.arch}}/apks
+
+      - name: Upload Build Outputs (libs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: libs-${{matrix.arch}}
+          path: |
+            angle/out/Android-${{matrix.arch}}/*.so
+            angle/out/Android-${{matrix.arch}}/lib.unstripped
             
          
