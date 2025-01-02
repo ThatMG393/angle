@@ -95,26 +95,26 @@ jobs:
           generate_debug_info = false
 
            ldflags = [ 
-            "-Wl,--strip-all", 
-            "-Wl,--gc-sections", 
-            "-Ofast",
-            "-funroll-loops",
-            "-flto",
-            "-Wl,--strip-debug"
+            \"-Wl,--strip-all\", 
+            \"-Wl,--gc-sections\", 
+            \"-Ofast\",
+            \"-funroll-loops\",
+            \"-flto\",
+            \"-Wl,--strip-debug\"
           ]
 
           cflags = [
-            "-Ofast",
-            "-march=armv7-a+neon-vfpv4",
-            "-mtune=cortex-a55",
-            "-mfpu=neon-vfpv4",
-            "-mfloat-abi=softfp",
-            "-fomit-frame-pointer",
-            "-ffunction-sections",
-            "-fdata-sections",
-            "-ffast-math",
-            "-fno-exceptions",
-            "-fno-rtti"
+            \"-Ofast\",
+            \"-march=armv7-a+neon-vfpv4\",
+            \"-mtune=cortex-a55\",
+            \"-mfpu=neon-vfpv4\",
+            \"-mfloat-abi=softfp\",
+            \"-fomit-frame-pointer\",
+            \"-ffunction-sections\",
+            \"-fdata-sections\",
+            \"-ffast-math\",
+            \"-fno-exceptions\",
+            \"-fno-rtti\"
           ]
           
           angle_enable_vulkan = true
