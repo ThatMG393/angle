@@ -80,6 +80,7 @@ jobs:
           echo "target_os = \"android\"
           target_cpu = \"${{matrix.arch}}\"
           is_component_build = false
+          is_official_build = true
           is_debug = false
           dcheck_always_on = false
           angle_assert_always_on = false
