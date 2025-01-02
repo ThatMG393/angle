@@ -58,18 +58,32 @@ jobs:
           path: 'angle'
           fetch-depth: 1
 
+      - name: Cache Angle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            angle/.cipd
+            angle/third_party
+            $GITHUB_WORKSPACE/depot_tools
+          key: ${{ runner.os }}-angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
+          restore-keys: |
+            ${{ runner.os }}-angle-deps-${{ matrix.arch }}-
+
       - name: Get & Install depot_tools
         run: |
-          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
-          echo $PATH
-          
+          if [ ! -d "$GITHUB_WORKSPACE/depot_tools" ]; then
+            git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+            echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
+          fi
+      
       - name: Setup Angle
         run: |
           cd angle
 
-          vpython3 scripts/bootstrap.py
-          gclient sync
+          if [ ! -d ".cipd" ] || [ ! -d "third_party" ]; then
+            vpython3 scripts/bootstrap.py
+            gclient sync
+          fi
 
       - name: Make GN arg
         run: |
@@ -103,7 +117,7 @@ jobs:
             \"-Wl,--strip-debug\"
           ]
           
-          cflags += [
+          cflags = [
             \"-Ofast\",
             \"-march=armv7-a+neon-vfpv4\",
             \"-mtune=cortex-a55\",
@@ -116,9 +130,6 @@ jobs:
             \"-fno-exceptions\",
             \"-fno-rtti\"
           ]
-          
-          cppflags += cflags
-          cxxflags += cppflags
           
           angle_enable_vulkan = true
           angle_vulkan_validation_layers = false
