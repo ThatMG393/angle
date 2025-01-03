@@ -17,6 +17,11 @@ jobs:
           path: 'angle'
           fetch-depth: 1
 
+      - name: Get & Install depot_tools
+        run: |
+          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
+
       - name: Cache Angle dependencies
         id: angle-deps-cache
         uses: actions/cache@v4
@@ -28,11 +33,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-angle-deps-${{ matrix.arch }}-
           
-      - name: Get & Install depot_tools
-        run: |
-          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
-
       - name: Bootstrap and Sync Angle
         run: |
           cd angle
