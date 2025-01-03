@@ -84,7 +84,6 @@ jobs:
 
           angle_expose_non_conformant_extensions_and_versions = true
           
-          angle_force_thread_safety = true
           build_angle_deqp_tests = false
           " > out/Android-${{matrix.arch}}/args.gn
 
