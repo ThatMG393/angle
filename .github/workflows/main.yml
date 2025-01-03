@@ -48,7 +48,6 @@ jobs:
           target_cpu = \"${{matrix.arch}}\"
           is_component_build = false
           is_debug = false
-          is_official_build = true
           angle_assert_always_on = false
           is_clang = true
           proprietary_codecs = true
