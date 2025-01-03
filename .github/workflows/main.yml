@@ -52,18 +52,22 @@ jobs:
           target_cpu = \"${{matrix.arch}}\"
           is_component_build = false
           is_debug = false
-          angle_standalone = true
+          is_official_build = true
+          angle_assert_always_on = false
           is_clang = true
+          proprietary_codecs = true
+          dcheck_always_on = false
 
-          android32_ndk_api_level = 26
+          android32_ndk_api_level = 29
 
           symbol_level = 0
           strip_debug_info = true
           generate_debug_info = false
           enable_resource_allowlist_generation = false
+          use_thin_lto = true
           
           angle_enable_vulkan = true
-          angle_vulkan_validation_layers = false
+          angle_enable_vulkan_validation_layers = false
 
           angle_enable_essl = true
           angle_enable_glsl = true
@@ -76,7 +80,11 @@ jobs:
           angle_enable_metal = false
           angle_enable_swiftshader = false
 
-          angle_expose_non_conformant_extensions_and_versions = true" >> out/Android-${{matrix.arch}}/args.gn
+          angle_expose_non_conformant_extensions_and_versions = true
+          
+          angle_force_thread_safety = true
+          build_angle_deqp_tests = false
+          " > out/Android-${{matrix.arch}}/args.gn
 
           gn gen out/Android-${{matrix.arch}}
 
