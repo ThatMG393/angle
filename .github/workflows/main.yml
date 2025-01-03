@@ -33,15 +33,10 @@ jobs:
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
 
-      - name: Bootstrap Env
+      - name: Bootstrap and Sync Angle
         run: |
           cd angle
           vpython3 scripts/bootstrap.py
-      
-      - name: Setup Angle
-        if: steps.angle-deps-cache.outputs.cache-hit != 'true'
-        run: |
-          cd angle   
           gclient sync --no-history -v -j$(nproc)
 
       - name: Make GN arg
