@@ -58,6 +58,8 @@ jobs:
           proprietary_codecs = true
           dcheck_always_on = false
 
+          cc_wrapper = ccache
+
           android32_ndk_api_level = 29
 
           symbol_level = 0
