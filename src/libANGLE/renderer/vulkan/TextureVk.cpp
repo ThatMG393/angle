@@ -314,14 +314,17 @@ const vk::Format *AdjustViewFormatForSampler(vk::Renderer *renderer,
             switch (intended->getIntendedFormatID())
             {
                 case angle::FormatID::R8_UNORM:
-                case angle::FormatID::R16_FLOAT:
-                case angle::FormatID::R32_FLOAT:
                 case angle::FormatID::R8G8_UNORM:
+                case angle::FormatID::R8G8B8A8_UNORM:
+                case angle::FormatID::R16_UNORM:
+                case angle::FormatID::R16G16_UNORM:
+                case angle::FormatID::R16G16B16A16_UNORM:
+                case angle::FormatID::R16_FLOAT:
                 case angle::FormatID::R16G16_FLOAT:
+                case angle::FormatID::R16G16B16A16_FLOAT:
+                case angle::FormatID::R32_FLOAT:
                 case angle::FormatID::R32G32_FLOAT:
                 case angle::FormatID::R32G32B32_FLOAT:
-                case angle::FormatID::R8G8B8A8_UNORM:
-                case angle::FormatID::R16G16B16A16_FLOAT:
                 case angle::FormatID::R32G32B32A32_FLOAT:
                     return intended;
                 case angle::FormatID::R8_SINT:
@@ -486,6 +489,74 @@ bool NeedsRGBAEmulation(vk::Renderer *renderer, angle::FormatID formatID)
     return true;
 }
 
+GLint GetFormatSupportedCompressionRates(vk::Renderer *renderer,
+                                         const vk::Format &format,
+                                         GLsizei bufSize,
+                                         GLint *rates)
+{
+    if (renderer->getFeatures().supportsImageCompressionControl.enabled)
+    {
+        VkImageCompressionControlEXT compressionInfo = {};
+        compressionInfo.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT;
+        // Use default compression control flag for query
+        compressionInfo.flags = VK_IMAGE_COMPRESSION_FIXED_RATE_DEFAULT_EXT;
+
+        VkImageCompressionPropertiesEXT compressionProp = {};
+        compressionProp.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_PROPERTIES_EXT;
+
+        if (vk::ImageHelper::FormatSupportsUsage(
+                renderer,
+                vk::GetVkFormatFromFormatID(renderer, format.getActualRenderableImageFormatID()),
+                VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                    VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                0, &compressionInfo, &compressionProp,
+                vk::ImageHelper::FormatSupportCheck::OnlyQuerySuccess))
+        {
+            if ((compressionProp.imageCompressionFlags &
+                 VK_IMAGE_COMPRESSION_FIXED_RATE_EXPLICIT_EXT) != 0)
+            {
+                return vk_gl::ConvertCompressionFlagsToGLFixedRates(
+                    compressionProp.imageCompressionFixedRateFlags, bufSize, rates);
+            }
+        }
+    }
+
+    return 0;
+}
+
+bool GetCompressionFixedRate(VkImageCompressionControlEXT *compressionInfo,
+                             VkImageCompressionFixedRateFlagsEXT *compressionRates,
+                             GLenum glCompressionRate)
+{
+    bool rtn = true;
+    ASSERT(compressionInfo->sType == VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT);
+    compressionInfo->compressionControlPlaneCount = 1;
+
+    if (glCompressionRate == GL_SURFACE_COMPRESSION_FIXED_RATE_NONE_EXT)
+    {
+        compressionInfo->flags = VK_IMAGE_COMPRESSION_DISABLED_EXT;
+    }
+    else if (glCompressionRate == GL_SURFACE_COMPRESSION_FIXED_RATE_DEFAULT_EXT)
+    {
+        compressionInfo->flags = VK_IMAGE_COMPRESSION_FIXED_RATE_DEFAULT_EXT;
+    }
+    else if (glCompressionRate >= GL_SURFACE_COMPRESSION_FIXED_RATE_1BPC_EXT &&
+             glCompressionRate <= GL_SURFACE_COMPRESSION_FIXED_RATE_12BPC_EXT)
+    {
+        int offset             = glCompressionRate - GL_SURFACE_COMPRESSION_FIXED_RATE_1BPC_EXT;
+        compressionInfo->flags = VK_IMAGE_COMPRESSION_FIXED_RATE_EXPLICIT_EXT;
+        *compressionRates      = 1u << offset;
+        compressionInfo->pFixedRateFlags = compressionRates;
+    }
+    else
+    {
+        // Invalid value
+        rtn = false;
+    }
+
+    return rtn;
+}
 }  // anonymous namespace
 
 // TextureVk implementation.
@@ -897,26 +968,32 @@ angle::Result TextureVk::clearSubImageImpl(const gl::Context *context,
     // If the texture is renderable (including multisampled), the partial clear can be applied to
     // the image simply by opening/closing a render pass with LOAD_OP_CLEAR. Otherwise, a buffer can
     // be filled with the given pixel data on the host and staged to the image as a buffer update.
-    ContextVk *contextVk                 = vk::GetImpl(context);
-    const gl::InternalFormat &formatInfo = gl::GetInternalFormatInfo(format, type);
-    const vk::Format &vkFormat =
-        contextVk->getRenderer()->getFormat(formatInfo.sizedInternalFormat);
-    const angle::FormatID &actualFormatID =
-        vkFormat.getActualImageFormatID(getRequiredImageAccess());
+    ContextVk *contextVk = vk::GetImpl(context);
+
+    const gl::InternalFormat &inputFormatInfo = gl::GetInternalFormatInfo(format, type);
+    const vk::Format &inputVkFormat =
+        contextVk->getRenderer()->getFormat(inputFormatInfo.sizedInternalFormat);
+
+    const gl::InternalFormat &outputFormatInfo =
+        gl::GetSizedInternalFormatInfo(mImage->getIntendedFormat().glInternalFormat);
+    const vk::Format &outputVkFormat =
+        contextVk->getRenderer()->getFormat(outputFormatInfo.sizedInternalFormat);
+    const angle::FormatID &outputActualFormatID = mImage->getActualFormatID();
+
     bool usesBufferForClear = false;
 
     VkFormatFeatureFlags renderableCheckFlag =
         clearMode == vk::ClearTextureMode::FullClear ? VK_FORMAT_FEATURE_TRANSFER_DST_BIT
-        : formatInfo.isDepthOrStencil() ? VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
-                                        : VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
-    if (vk::FormatHasNecessaryFeature(contextVk->getRenderer(), actualFormatID, getTilingMode(),
-                                      renderableCheckFlag))
+        : outputFormatInfo.isDepthOrStencil() ? VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+                                              : VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+    if (vk::FormatHasNecessaryFeature(contextVk->getRenderer(), outputActualFormatID,
+                                      getTilingMode(), renderableCheckFlag))
     {
         uint32_t baseLayer  = useLayerAsDepth ? clearArea.z : 0;
         uint32_t layerCount = useLayerAsDepth ? clearArea.depth : 1;
         ANGLE_TRY(mImage->stagePartialClear(contextVk, clearArea, clearMode, mState.getType(),
-                                            level, baseLayer, layerCount, type, formatInfo,
-                                            vkFormat, getRequiredImageAccess(), data));
+                                            level, baseLayer, layerCount, type, inputFormatInfo,
+                                            inputVkFormat, getRequiredImageAccess(), data));
     }
     else
     {
@@ -924,7 +1001,7 @@ angle::Result TextureVk::clearSubImageImpl(const gl::Context *context,
         bool updateAppliedImmediately = false;
         usesBufferForClear            = true;
 
-        auto pixelSize = static_cast<size_t>(formatInfo.pixelBytes);
+        auto pixelSize = static_cast<size_t>(inputFormatInfo.pixelBytes);
         std::vector<uint8_t> pixelValue(pixelSize, 0);
         if (data != nullptr)
         {
@@ -964,8 +1041,8 @@ angle::Result TextureVk::clearSubImageImpl(const gl::Context *context,
                 ANGLE_TRY(mImage->stageSubresourceUpdate(
                     contextVk, getNativeImageIndex(index),
                     gl::Extents(clearArea.width, clearArea.height, 1),
-                    gl::Offset(clearArea.x, clearArea.y, 0), formatInfo, pixelUnpackState, type,
-                    clearBuffer.data(), vkFormat, getRequiredImageAccess(),
+                    gl::Offset(clearArea.x, clearArea.y, 0), inputFormatInfo, pixelUnpackState,
+                    type, clearBuffer.data(), outputVkFormat, getRequiredImageAccess(),
                     vk::ApplyImageUpdate::Defer, &updateAppliedImmediately));
                 ASSERT(!updateAppliedImmediately);
             }
@@ -980,17 +1057,17 @@ angle::Result TextureVk::clearSubImageImpl(const gl::Context *context,
             ANGLE_TRY(mImage->stageSubresourceUpdate(
                 contextVk, getNativeImageIndex(index),
                 gl::Extents(clearArea.width, clearArea.height, clearArea.depth),
-                gl::Offset(clearArea.x, clearArea.y, clearArea.z), formatInfo, pixelUnpackState,
-                type, clearBuffer.data(), vkFormat, getRequiredImageAccess(),
-                vk::ApplyImageUpdate::Defer, &updateAppliedImmediately));
+                gl::Offset(clearArea.x, clearArea.y, clearArea.z), inputFormatInfo,
+                pixelUnpackState, type, clearBuffer.data(), outputVkFormat,
+                getRequiredImageAccess(), vk::ApplyImageUpdate::Defer, &updateAppliedImmediately));
             ASSERT(!updateAppliedImmediately);
         }
     }
 
     // Flush the staged updates if needed.
-    ANGLE_TRY(ensureImageInitializedIfUpdatesNeedStageOrFlush(contextVk, gl::LevelIndex(level),
-                                                              vkFormat, vk::ApplyImageUpdate::Defer,
-                                                              usesBufferForClear));
+    ANGLE_TRY(ensureImageInitializedIfUpdatesNeedStageOrFlush(
+        contextVk, gl::LevelIndex(level), outputVkFormat, vk::ApplyImageUpdate::Defer,
+        usesBufferForClear));
     return angle::Result::Continue;
 }
 
@@ -1079,7 +1156,7 @@ angle::Result TextureVk::setSubImageImpl(const gl::Context *context,
         GLuint inputDepthPitch         = 0;
         GLuint inputSkipBytes          = 0;
 
-        ANGLE_TRY(mImage->CalculateBufferInfo(
+        ANGLE_TRY(mImage->calculateBufferInfo(
             contextVk, gl::Extents(area.width, area.height, area.depth), formatInfo, unpack, type,
             index.usesTex3D(), &inputRowPitch, &inputDepthPitch, &inputSkipBytes));
 
@@ -2058,42 +2135,6 @@ GLint TextureVk::getImageCompressionRate(const gl::Context *context)
     return compressionRate;
 }
 
-GLint TextureVk::getFormatSupportedCompressionRatesImpl(vk::Renderer *renderer,
-                                                        const vk::Format &format,
-                                                        GLsizei bufSize,
-                                                        GLint *rates)
-{
-    if (renderer->getFeatures().supportsImageCompressionControl.enabled)
-    {
-        VkImageCompressionControlEXT compressionInfo = {};
-        compressionInfo.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT;
-        // Use default compression control flag for query
-        compressionInfo.flags = VK_IMAGE_COMPRESSION_FIXED_RATE_DEFAULT_EXT;
-
-        VkImageCompressionPropertiesEXT compressionProp = {};
-        compressionProp.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_PROPERTIES_EXT;
-
-        if (vk::ImageHelper::FormatSupportsUsage(
-                renderer,
-                vk::GetVkFormatFromFormatID(renderer, format.getActualRenderableImageFormatID()),
-                VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
-                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                    VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                0, &compressionInfo, &compressionProp,
-                vk::ImageHelper::FormatSupportCheck::OnlyQuerySuccess))
-        {
-            if ((compressionProp.imageCompressionFlags &
-                 VK_IMAGE_COMPRESSION_FIXED_RATE_EXPLICIT_EXT) != 0)
-            {
-                return vk_gl::ConvertCompressionFlagsToGLFixedRates(
-                    compressionProp.imageCompressionFixedRateFlags, bufSize, rates);
-            }
-        }
-    }
-
-    return 0;
-}
-
 GLint TextureVk::getFormatSupportedCompressionRates(const gl::Context *context,
                                                     GLenum internalformat,
                                                     GLsizei bufSize,
@@ -2103,7 +2144,7 @@ GLint TextureVk::getFormatSupportedCompressionRates(const gl::Context *context,
     vk::Renderer *renderer   = contextVk->getRenderer();
     const vk::Format &format = renderer->getFormat(internalformat);
 
-    return getFormatSupportedCompressionRatesImpl(renderer, format, bufSize, rates);
+    return GetFormatSupportedCompressionRates(renderer, format, bufSize, rates);
 }
 
 void TextureVk::handleImmutableSamplerTransition(const vk::ImageHelper *previousImage,
@@ -3062,8 +3103,6 @@ angle::Result TextureVk::getAttachmentRenderTarget(const gl::Context *context,
                             ImageMipLevels::EnabledLevels));
     }
 
-    ANGLE_TRY(performImageQueueTransferIfNecessary(contextVk));
-
     const bool hasRenderToTextureEXT =
         contextVk->getFeatures().supportsMultisampledRenderToSingleSampled.enabled;
 
@@ -3176,37 +3215,6 @@ angle::Result TextureVk::flushImageStagedUpdates(ContextVk *contextVk)
     return mImage->flushStagedUpdates(contextVk, firstLevelGL,
                                       firstLevelGL + getImageViewLevelCount(), firstLayer,
                                       firstLayer + getImageViewLayerCount(), mRedefinedLevels);
-}
-
-angle::Result TextureVk::performImageQueueTransferIfNecessary(ContextVk *contextVk)
-{
-    if (mImage->valid() && mImage->isQueueFamilyChangeNeccesary(contextVk->getDeviceQueueIndex()))
-    {
-        vk::ImageLayout newLayout = vk::ImageLayout::AllGraphicsShadersWrite;
-        if (mImage->getUsage() & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
-        {
-            newLayout = vk::ImageLayout::ColorWrite;
-        }
-        else if (mImage->getUsage() & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
-        {
-            newLayout = vk::ImageLayout::DepthWriteStencilWrite;
-        }
-        else if (mImage->getUsage() &
-                 (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
-        {
-            newLayout = vk::ImageLayout::AllGraphicsShadersReadOnly;
-        }
-
-        vk::OutsideRenderPassCommandBuffer *commandBuffer;
-        vk::CommandBufferAccess access;
-        access.onExternalAcquireRelease(mImage);
-        ANGLE_TRY(contextVk->getOutsideRenderPassCommandBuffer(access, &commandBuffer));
-        mImage->changeLayoutAndQueue(contextVk, mImage->getAspectFlags(), newLayout,
-                                     contextVk->getDeviceQueueIndex(), commandBuffer);
-        ANGLE_TRY(contextVk->onEGLImageQueueChange());
-    }
-
-    return angle::Result::Continue;
 }
 
 void TextureVk::initSingleLayerRenderTargets(ContextVk *contextVk,
@@ -3601,8 +3609,6 @@ angle::Result TextureVk::syncState(const gl::Context *context,
 
     ANGLE_TRY(respecifyImageStorageIfNecessary(contextVk, source));
 
-    ANGLE_TRY(performImageQueueTransferIfNecessary(contextVk));
-
     // Initialize the image storage and flush the pixel buffer.
     const bool isGenerateMipmap = source == gl::Command::GenerateMipmap;
     ANGLE_TRY(ensureImageInitialized(contextVk, isGenerateMipmap
@@ -3778,7 +3784,7 @@ const vk::ImageView &TextureVk::getCopyImageView() const
     return imageViews.getLinearCopyImageView();
 }
 
-angle::Result TextureVk::getLevelLayerImageView(vk::Context *context,
+angle::Result TextureVk::getLevelLayerImageView(vk::ErrorContext *context,
                                                 gl::LevelIndex level,
                                                 size_t layer,
                                                 const vk::ImageView **imageViewOut)
@@ -3793,7 +3799,7 @@ angle::Result TextureVk::getLevelLayerImageView(vk::Context *context,
                                                       imageViewOut);
 }
 
-angle::Result TextureVk::getStorageImageView(vk::Context *context,
+angle::Result TextureVk::getStorageImageView(vk::ErrorContext *context,
                                              const gl::ImageUnit &binding,
                                              const vk::ImageView **imageViewOut)
 {
@@ -3808,7 +3814,9 @@ angle::Result TextureVk::getStorageImageView(vk::Context *context,
         getNativeImageLevel(gl::LevelIndex(static_cast<uint32_t>(binding.level)));
     vk::LevelIndex nativeLevelVk = mImage->toVkLevel(nativeLevelGL);
 
-    if (binding.layered != GL_TRUE)
+    // If the texture does not have multiple layers or faces, the entire texture
+    // level is bound, regardless of the values specified by layered and layer.
+    if (binding.layered != GL_TRUE && IsLayeredTextureType(mState.getType()))
     {
         uint32_t nativeLayer = getNativeImageLayer(static_cast<uint32_t>(binding.layer));
 
@@ -3826,7 +3834,7 @@ angle::Result TextureVk::getStorageImageView(vk::Context *context,
         format->getActualImageFormatID(getRequiredImageAccess()), imageViewOut);
 }
 
-vk::BufferHelper *TextureVk::getPossiblyEmulatedTextureBuffer(vk::Context *context) const
+vk::BufferHelper *TextureVk::getPossiblyEmulatedTextureBuffer(vk::ErrorContext *context) const
 {
     vk::Renderer *renderer = context->getRenderer();
 
@@ -3840,7 +3848,7 @@ vk::BufferHelper *TextureVk::getPossiblyEmulatedTextureBuffer(vk::Context *conte
     return &bufferVk->getBuffer();
 }
 
-angle::Result TextureVk::getBufferView(vk::Context *context,
+angle::Result TextureVk::getBufferView(vk::ErrorContext *context,
                                        const vk::Format *imageUniformFormat,
                                        const gl::SamplerBinding *samplerBinding,
                                        bool isImage,
@@ -4024,10 +4032,10 @@ angle::Result TextureVk::initImage(ContextVk *contextVk,
     // Fixed rate compression
     VkImageCompressionControlEXT *compressionInfo   = nullptr;
     VkImageCompressionControlEXT compressionInfoVar = {};
-    compressionInfoVar.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT;
-    VkImageCompressionFixedRateFlagsEXT compressionRates = VK_IMAGE_COMPRESSION_FIXED_RATE_NONE_EXT;
-    if (mOwnsImage && renderer->getFeatures().supportsImageCompressionControl.enabled)
+    if (renderer->getFeatures().supportsImageCompressionControl.enabled && mOwnsImage &&
+        mState.getSurfaceCompressionFixedRate() != GL_SURFACE_COMPRESSION_FIXED_RATE_NONE_EXT)
     {
+        compressionInfoVar.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT;
         // Use default compression control flag for query
         compressionInfoVar.flags = VK_IMAGE_COMPRESSION_FIXED_RATE_DEFAULT_EXT;
 
@@ -4037,10 +4045,12 @@ angle::Result TextureVk::initImage(ContextVk *contextVk,
         // If fixed rate compression is supported by this type, not support YUV now.
         const vk::Format &format = renderer->getFormat(intendedImageFormatID);
         if (!mImage->isYuvResolve() &&
-            (getFormatSupportedCompressionRatesImpl(renderer, format, 0, nullptr) != 0))
+            (GetFormatSupportedCompressionRates(renderer, format, 0, nullptr) != 0))
         {
-            mImage->getCompressionFixedRate(&compressionInfoVar, &compressionRates,
-                                            mState.getSurfaceCompressionFixedRate());
+            VkImageCompressionFixedRateFlagsEXT compressionRates =
+                VK_IMAGE_COMPRESSION_FIXED_RATE_NONE_EXT;
+            GetCompressionFixedRate(&compressionInfoVar, &compressionRates,
+                                    mState.getSurfaceCompressionFixedRate());
             compressionInfo = &compressionInfoVar;
         }
     }
