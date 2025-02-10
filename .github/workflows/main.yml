@@ -14,11 +14,6 @@ jobs:
     name: Build For Android (libraries and apks)
     runs-on: namespace-profile-anglebuild
     steps:
-      - name: Set TMPDIR to workspace tmp directory
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/tmp"
-          echo "TMPDIR=$GITHUB_WORKSPACE/tmp" >> "$GITHUB_ENV"
-    
       - uses: namespacelabs/nscloud-setup@v0
     
       - name: Setup CCache
@@ -28,41 +23,51 @@ jobs:
             max_size=30000MB
             compression=false
     
-      
+      - name: Get Angle
+        uses: namespacelabs/nscloud-checkout-action@v5
+        with:
+          path: 'angle'
+          fetch-depth: 1
 
       - name: Get & Install depot_tools
         run: |
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
 
-      - name: Get CCache caches
-        id: ccache-caches
-        uses: namespacelabs/nscloud-cache-action@v1
+      - name: CCache caches
+        uses: actions/cache@v4
         with:
+          key: ccache-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
+          restore-keys: ccache-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
           path: |
             ~/.ccache
 
-      - name: Get Angle dependencies caches
-        id: angle-caches
-        uses: namespacelabs/nscloud-cache-action@v1
+      - name: Angle dependencies caches
+        uses: actions/cache@v4
         with:
+          key: angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
+          restore-keys: angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
           path: |
-            ./.cipd
-            ./third_party
+            angle/.cipd
+            angle/third_party
           
-      - name: Get Gradle caches
-        id: gradle-caches
-        uses: namespacelabs/nscloud-cache-action@v1
+      - name: Gradle caches
+        uses: actions/cache@v4
         with:
-          cache: gradle
+          key: gradle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
+          restore-keys: gradle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
+          path: |
+            ~/.gradle
           
       - name: Bootstrap and Sync Angle
         run: |
+          cd angle
           vpython3 scripts/bootstrap.py
           gclient sync --no-history -j$(nproc)
 
       - name: Make GN arg
         run: |
+          cd angle
           mkdir -p out/Android-${{matrix.arch}}
           
           echo "target_os = 'android'
@@ -111,6 +116,7 @@ jobs:
 
       - name: Build Angle (apk)
         run: |
+          cd angle
           autoninja -j$(nproc) -C out/Android-${{matrix.arch}} angle_apks
 
       - name: Upload Build Outputs (apk)
@@ -118,6 +124,7 @@ jobs:
         with:
           name: apks-${{matrix.arch}}
           path: |
+            cd angle
             out/Android-${{matrix.arch}}/apks
 
       - name: Upload Build Outputs (libs)
@@ -125,28 +132,5 @@ jobs:
         with:
           name: libs-${{matrix.arch}}
           path: |
-            out/Android-${{matrix.arch}}/*.so
-            out/Android-${{matrix.arch}}/lib.unstripped
-
-      - name: Save CCache caches
-        uses: namespacelabs/nscloud-cache-action@v1
-        if: steps.ccache-caches.outputs.cache-hit != 'true'
-        with:
-          path: |
-            ~/.ccache
-
-      - name: Save Angle dependencies caches
-        uses: namespacelabs/nscloud-cache-action@v1
-        if: steps.angle-caches.outputs.cache-hit != 'true'
-        with:
-          path: |
-            ./.cipd
-            ./third_party
-          
-      - name: Save Gradle caches
-        uses: namespacelabs/nscloud-cache-action@v1
-        if: steps.gradle-caches.outputs.cache-hit != 'true'
-        with:
-          cache: gradle
-            
-         
+            angle/out/Android-${{matrix.arch}}/*.so
+            angle/out/Android-${{matrix.arch}}/lib.unstripped
