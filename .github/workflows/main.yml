@@ -59,7 +59,7 @@ jobs:
       - name: Bootstrap and Sync Angle
         run: |
           vpython3 scripts/bootstrap.py
-          gclient sync --no-history --no-hardlinks -j$(nproc)
+          gclient sync --no-history -j$(nproc)
 
       - name: Make GN arg
         run: |
