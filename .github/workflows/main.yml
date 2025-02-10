@@ -64,7 +64,7 @@ jobs:
         run: |
           cd angle-checkedout
           vpython3 scripts/bootstrap.py
-          gclient sync --no-history -j$(nproc)
+          gclient sync --no-history --no-hardlinks -j$(nproc)
 
       - name: Make GN arg
         run: |
