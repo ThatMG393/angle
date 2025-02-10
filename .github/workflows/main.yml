@@ -68,10 +68,10 @@ jobs:
       - name: Make GN arg
         run: |
           cd angle
-          mkdir -p out/Android-${{matrix.arch}}
+          mkdir -p out/Android-${{ matrix.arch }}
           
-          echo "target_os = 'android'
-          target_cpu = '${{matrix.arch}}'
+          echo "target_os = \"android\"
+          target_cpu = \"${{ matrix.arch }}\"
           is_component_build = false
           is_debug = false
           angle_assert_always_on = false
@@ -79,7 +79,7 @@ jobs:
           proprietary_codecs = true
           dcheck_always_on = false
 
-          cc_wrapper='env CCACHE_SLOPPINESS=time_macros ccache'
+          cc_wrapper=\"env CCACHE_SLOPPINESS=time_macros ccache\"
 
           android32_ndk_api_level = 29
 
@@ -106,31 +106,31 @@ jobs:
           angle_expose_non_conformant_extensions_and_versions = true
           
           build_angle_deqp_tests = false
-          " > out/Android-${{matrix.arch}}/args.gn
+          " > out/Android-${{ matrix.arch }}/args.gn
 
-          gn gen out/Android-${{matrix.arch}}
+          gn gen out/Android-${{ matrix.arch }}
 
       - name: Build Angle (libraries)
         run: |
-          autoninja -j$(nproc) -C out/Android-${{matrix.arch}}
+          autoninja -j$(nproc) -C out/Android-${{ matrix.arch }}
 
       - name: Build Angle (apk)
         run: |
           cd angle
-          autoninja -j$(nproc) -C out/Android-${{matrix.arch}} angle_apks
+          autoninja -j$(nproc) -C out/Android-${{ matrix.arch }} angle_apks
 
       - name: Upload Build Outputs (apk)
         uses: actions/upload-artifact@v4
         with:
-          name: apks-${{matrix.arch}}
+          name: apks-${{ matrix.arch }}
           path: |
             cd angle
-            out/Android-${{matrix.arch}}/apks
+            out/Android-${{ matrix.arch }}/apks
 
       - name: Upload Build Outputs (libs)
         uses: actions/upload-artifact@v4
         with:
-          name: libs-${{matrix.arch}}
+          name: libs-${{ matrix.arch }}
           path: |
-            angle/out/Android-${{matrix.arch}}/*.so
-            angle/out/Android-${{matrix.arch}}/lib.unstripped
+            angle/out/Android-${{ matrix.arch }}/*.so
+            angle/out/Android-${{ matrix.arch }}/lib.unstripped
