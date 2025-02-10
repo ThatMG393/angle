@@ -4,6 +4,9 @@ on: [ workflow_dispatch, push ]
 
 jobs:
   build:
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
         arch: [ "arm", "arm64" ]
@@ -11,13 +14,15 @@ jobs:
     name: Build For Android (libraries and apks)
     runs-on: namespace-profile-anglebuild
     steps:
+      - uses: namespacelabs/nscloud-setup@v0
+    
       - name: Install CCache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           create-symlink: true
     
       - name: Get Angle
-        uses: actions/checkout@v4
+        uses: namespacelabs/nscloud-checkout-action@v5
         with:
           path: 'angle'
           fetch-depth: 1
@@ -28,8 +33,7 @@ jobs:
           echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
 
       - name: Cache Angle dependencies
-        id: angle-deps-cache
-        uses: actions/cache@v4
+        uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
             angle/.cipd
@@ -37,6 +41,11 @@ jobs:
           key: ${{ runner.os }}-angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
           restore-keys: |
             ${{ runner.os }}-angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
+
+      - name: Cache Angle dependencies
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: gradle
           
       - name: Bootstrap and Sync Angle
         run: |
