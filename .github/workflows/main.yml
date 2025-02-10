@@ -31,7 +31,7 @@ jobs:
       - name: Get Angle
         uses: namespacelabs/nscloud-checkout-action@v5
         with:
-          path: 'angle'
+          # path: 'angle'
           fetch-depth: 1
 
       - name: Get & Install depot_tools
@@ -51,8 +51,8 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
-            angle/.cipd
-            angle/third_party
+            ./.cipd
+            ./third_party
           
       - name: Get Gradle caches
         id: gradle-caches
