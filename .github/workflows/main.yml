@@ -34,14 +34,6 @@ jobs:
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
 
-      - name: CCache caches
-        uses: actions/cache@v4
-        with:
-          key: ccache-cache-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
-          restore-keys: ccache-cache-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
-          path: |
-            ~/.cache/ccache
-
       - name: Angle dependencies caches
         uses: actions/cache@v4
         with:
