@@ -14,6 +14,11 @@ jobs:
     name: Build For Android (libraries and apks)
     runs-on: namespace-profile-anglebuild
     steps:
+      - name: Set TMPDIR to workspace tmp directory
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tmp"
+          echo "TMPDIR=$GITHUB_WORKSPACE/tmp" >> "$GITHUB_ENV"
+    
       - uses: namespacelabs/nscloud-setup@v0
     
       - name: Setup CCache
