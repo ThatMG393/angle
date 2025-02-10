@@ -16,10 +16,12 @@ jobs:
     steps:
       - uses: namespacelabs/nscloud-setup@v0
     
-      - name: Install CCache
-        uses: hendrikmuhs/ccache-action@v1.2
+      - name: Setup CCache
+        uses: Chocobo1/setup-ccache-action@v1
         with:
-          create-symlink: true
+          ccache_options: |
+            max_size=30000MB
+            compression=false
     
       - name: Get Angle
         uses: namespacelabs/nscloud-checkout-action@v5
@@ -32,17 +34,23 @@ jobs:
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
 
-      - name: Cache Angle dependencies
+      - name: Get CCache caches
+        id: ccache-caches
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: |
+            ~/.ccache
+
+      - name: Get Angle dependencies caches
+        id: angle-caches
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
             angle/.cipd
             angle/third_party
-          key: ${{ runner.os }}-angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
-          restore-keys: |
-            ${{ runner.os }}-angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
-
-      - name: Cache Angle dependencies
+          
+      - name: Get Gradle caches
+        id: gradle-caches
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: gradle
@@ -122,5 +130,26 @@ jobs:
           path: |
             angle/out/Android-${{matrix.arch}}/*.so
             angle/out/Android-${{matrix.arch}}/lib.unstripped
+
+      - name: Save CCache caches
+        uses: namespacelabs/nscloud-cache-action@v1
+        if: steps.ccache-caches.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.ccache
+
+      - name: Save Angle dependencies caches
+        uses: namespacelabs/nscloud-cache-action@v1
+        if: steps.angle-caches.outputs.cache-hit != 'true'
+        with:
+          path: |
+            angle/.cipd
+            angle/third_party
+          
+      - name: Save Gradle caches
+        uses: namespacelabs/nscloud-cache-action@v1
+        if: steps.gradle-caches.outputs.cache-hit != 'true'
+        with:
+          cache: gradle
             
          
