@@ -9,7 +9,7 @@ jobs:
         arch: [ "arm", "arm64" ]
 
     name: Build For Android (libraries and apks)
-    runs-on: nscloud-ubuntu-24.04-amd64-8x8
+    runs-on: namespace-profile-default
     steps:
       - name: Install CCache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -36,7 +36,7 @@ jobs:
             angle/third_party
           key: ${{ runner.os }}-angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
           restore-keys: |
-            ${{ runner.os }}-angle-deps-${{ matrix.arch }}-
+            ${{ runner.os }}-angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
           
       - name: Bootstrap and Sync Angle
         run: |
@@ -49,8 +49,8 @@ jobs:
           cd angle
           mkdir -p out/Android-${{matrix.arch}}
           
-          echo "target_os = \"android\"
-          target_cpu = \"${{matrix.arch}}\"
+          echo "target_os = 'android'
+          target_cpu = '${{matrix.arch}}'
           is_component_build = false
           is_debug = false
           angle_assert_always_on = false
@@ -58,7 +58,7 @@ jobs:
           proprietary_codecs = true
           dcheck_always_on = false
 
-          cc_wrapper = \"ccache\"
+          cc_wrapper='env CCACHE_SLOPPINESS=time_macros ccache'
 
           android32_ndk_api_level = 29
 
