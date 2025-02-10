@@ -51,7 +51,7 @@ jobs:
         run: |
           cd angle
           vpython3 scripts/bootstrap.py
-          gclient sync --no-history -v -j$(nproc)
+          gclient sync --no-history -j$(nproc)
 
       - name: Make GN arg
         run: |
