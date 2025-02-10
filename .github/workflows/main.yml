@@ -31,7 +31,7 @@ jobs:
       - name: Get Angle
         uses: namespacelabs/nscloud-checkout-action@v5
         with:
-          # path: 'angle'
+          path: 'angle-checkedout'
           fetch-depth: 1
 
       - name: Get & Install depot_tools
@@ -51,8 +51,8 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
-            ./.cipd
-            ./third_party
+            angle-checkedout/.cipd
+            angle-checkedout/third_party
           
       - name: Get Gradle caches
         id: gradle-caches
@@ -62,13 +62,13 @@ jobs:
           
       - name: Bootstrap and Sync Angle
         run: |
-          cd angle
+          cd angle-checkedout
           vpython3 scripts/bootstrap.py
           gclient sync --no-history -j$(nproc)
 
       - name: Make GN arg
         run: |
-          cd angle
+          cd angle-checkedout
           mkdir -p out/Android-${{matrix.arch}}
           
           echo "target_os = 'android'
@@ -113,12 +113,12 @@ jobs:
 
       - name: Build Angle (libraries)
         run: |
-          cd angle
+          cd angle-checkedout
           autoninja -j$(nproc) -C out/Android-${{matrix.arch}}
 
       - name: Build Angle (apk)
         run: |
-          cd angle
+          cd angle-checkedout
           autoninja -j$(nproc) -C out/Android-${{matrix.arch}} angle_apks
 
       - name: Upload Build Outputs (apk)
@@ -126,15 +126,15 @@ jobs:
         with:
           name: apks-${{matrix.arch}}
           path: |
-            angle/out/Android-${{matrix.arch}}/apks
+            angle-checkedout/out/Android-${{matrix.arch}}/apks
 
       - name: Upload Build Outputs (libs)
         uses: actions/upload-artifact@v4
         with:
           name: libs-${{matrix.arch}}
           path: |
-            angle/out/Android-${{matrix.arch}}/*.so
-            angle/out/Android-${{matrix.arch}}/lib.unstripped
+            angle-checkedout/out/Android-${{matrix.arch}}/*.so
+            angle-checkedout/out/Android-${{matrix.arch}}/lib.unstripped
 
       - name: Save CCache caches
         uses: namespacelabs/nscloud-cache-action@v1
@@ -148,8 +148,8 @@ jobs:
         if: steps.angle-caches.outputs.cache-hit != 'true'
         with:
           path: |
-            angle/.cipd
-            angle/third_party
+            angle-checkedout/.cipd
+            angle-checkedout/third_party
           
       - name: Save Gradle caches
         uses: namespacelabs/nscloud-cache-action@v1
