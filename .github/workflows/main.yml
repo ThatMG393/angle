@@ -51,14 +51,6 @@ jobs:
             angle/.cipd
             angle/third_party
           
-      - name: Gradle caches
-        uses: actions/cache@v4
-        with:
-          key: gradle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
-          restore-keys: gradle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
-          path: |
-            ~/.gradle
-          
       - name: Bootstrap and Sync Angle
         run: |
           cd angle
@@ -124,9 +116,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: apks-${{ matrix.arch }}
-          path: |
-            cd angle
-            out/Android-${{ matrix.arch }}/apks
+          path: | 
+            angle/out/Android-${{ matrix.arch }}/apks
 
       - name: Upload Build Outputs (libs)
         uses: actions/upload-artifact@v4
