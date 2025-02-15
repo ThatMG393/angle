@@ -419,6 +419,7 @@ vars = {
   'checkout_angle_restricted_trace_toca_life_world': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_toon_blast': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_top_war': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_tower_of_fantasy': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_township': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_traffic_rider': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_trex_200': 'checkout_angle_restricted_traces',
@@ -997,7 +998,7 @@ deps = {
   },
 
   'third_party/SwiftShader': {
-    'url': Var('swiftshader_git') + '/SwiftShader@5017ce3c800e1410da6a3257098a8370591de5fa',
+    'url': Var('swiftshader_git') + '/SwiftShader@720189cae8478484f51531a9eed9abc6d8635271',
     'condition': 'not build_with_chromium',
   },
 
@@ -1017,17 +1018,17 @@ deps = {
   },
 
   'third_party/vulkan-deps': {
-    'url': Var('chromium_git') + '/vulkan-deps@b4c8dd090b72888dcc64a26a36606073b6fb5838',
+    'url': Var('chromium_git') + '/vulkan-deps@b62b2ca7025e54c25a16f678dd6ce39adfaccc73',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/glslang/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/glslang@8a6b381c9afbfaf9fff851582539fab15ea480c0',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/glslang@ef5207f9f8cce5097568efb15d3297d8b5d13014',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/lunarg-vulkantools/src': {
-    'url': '{chromium_git}/external/github.com/LunarG/VulkanTools@a0bfdde8b720c81fb37f42d2fa00522e68699268',
+    'url': '{chromium_git}/external/github.com/LunarG/VulkanTools@0ed717a810d28e7533d935a7c0017f6d267a8671',
     'condition': 'not build_with_chromium',
   },
 
@@ -1042,7 +1043,7 @@ deps = {
   },
 
   'third_party/spirv-tools/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/SPIRV-Tools@b3fe11f89bd6673a1a8c55b0ddb9ba42811f0774',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/SPIRV-Tools@dc1641d168304d3ef97bba23d5fc45c9bead45f5',
     'condition': 'not build_with_chromium',
   },
 
@@ -1067,7 +1068,7 @@ deps = {
   },
 
   'third_party/vulkan-validation-layers/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-ValidationLayers@05e71c3af5bb92b26af767b00789e71bc65b72aa',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-ValidationLayers@266d5cd69a94c1262c44307f4c4209c97f5c6ec4',
     'condition': 'not build_with_chromium',
   },
 
@@ -3860,6 +3861,16 @@ deps = {
       ],
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_top_war',
+  },
+  'src/tests/restricted_traces/tower_of_fantasy': {
+      'packages': [
+        {
+            'package': 'angle/traces/tower_of_fantasy',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_tower_of_fantasy',
   },
   'src/tests/restricted_traces/township': {
       'packages': [
