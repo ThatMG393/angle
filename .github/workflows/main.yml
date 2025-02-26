@@ -62,8 +62,7 @@ jobs:
           is_clang = true
           proprietary_codecs = true
           dcheck_always_on = false
-          angle_force_thread_safety = false
-
+          
           cc_wrapper=\"env CCACHE_SLOPPINESS=time_macros ccache\"
 
           android32_ndk_api_level = 30
@@ -92,6 +91,10 @@ jobs:
           angle_expose_non_conformant_extensions_and_versions = true
           
           build_angle_deqp_tests = false
+          arm_use_neon = true
+          arm_version = 8
+          angle_enable_vulkan_shared_ring_buffer_cmd_alloc = true
+          angle_build_tests = false
           " > out/Android-${{ matrix.arch }}/args.gn
 
           gn gen out/Android-${{ matrix.arch }} --threads=$(nproc)
