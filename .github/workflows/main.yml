@@ -62,10 +62,12 @@ jobs:
           is_clang = true
           proprietary_codecs = true
           dcheck_always_on = false
+          angle_force_thread_safety = false
 
           cc_wrapper=\"env CCACHE_SLOPPINESS=time_macros ccache\"
 
-          android32_ndk_api_level = 29
+          android32_ndk_api_level = 30
+          android64_ndk_api_level = 30
 
           symbol_level = 0
           strip_debug_info = true
@@ -77,7 +79,7 @@ jobs:
           angle_enable_vulkan_validation_layers = false
 
           angle_enable_essl = true
-          angle_enable_glsl = true
+          angle_enable_glsl = false
           angle_enable_hlsl = false
 
           angle_enable_gl = false
@@ -92,7 +94,7 @@ jobs:
           build_angle_deqp_tests = false
           " > out/Android-${{ matrix.arch }}/args.gn
 
-          gn gen out/Android-${{ matrix.arch }}
+          gn gen out/Android-${{ matrix.arch }} --threads=$(nproc) 
 
       - name: Build Angle (libraries)
         run: |
