@@ -79,7 +79,7 @@ jobs:
           angle_enable_vulkan_validation_layers = false
 
           angle_enable_essl = true
-          angle_enable_glsl = false
+          angle_enable_glsl = true
           angle_enable_hlsl = false
 
           angle_enable_gl = false
