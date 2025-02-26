@@ -53,6 +53,7 @@ jobs:
         run: |
           cd angle
           mkdir -p out/Android-${{ matrix.arch }}
+          gn args --list out/Android-${{ matrix.arch }}
           
           echo "target_os = \"android\"
           target_cpu = \"${{ matrix.arch }}\"
