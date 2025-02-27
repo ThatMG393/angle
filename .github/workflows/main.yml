@@ -95,6 +95,8 @@ jobs:
           arm_version = 8
           angle_enable_vulkan_shared_ring_buffer_cmd_alloc = true
           angle_build_tests = false
+          arm_float_abi = \"hard\"
+          arm_fpu = \"neon\"
           " > out/Android-${{ matrix.arch }}/args.gn
 
           gn gen out/Android-${{ matrix.arch }} --threads=$(nproc)
