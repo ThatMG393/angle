@@ -393,9 +393,17 @@ void DeriveRenderingInfo(Renderer *renderer,
 
         if (subset == DynamicRenderingInfoSubset::Full)
         {
+            ASSERT(static_cast<vk::ImageLayout>(ops[attachmentCount].initialLayout) !=
+                       vk::ImageLayout::SharedPresent ||
+                   static_cast<vk::ImageLayout>(ops[attachmentCount].finalLayout) ==
+                       vk::ImageLayout::SharedPresent);
             const VkImageLayout layout = vk::ConvertImageLayoutToVkImageLayout(
-                renderer, static_cast<vk::ImageLayout>(ops[attachmentCount].initialLayout));
-            const VkImageLayout resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                static_cast<vk::ImageLayout>(ops[attachmentCount].initialLayout));
+            const VkImageLayout resolveImageLayout =
+                (static_cast<vk::ImageLayout>(ops[attachmentCount].finalResolveLayout) ==
+                         vk::ImageLayout::SharedPresent
+                     ? VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR
+                     : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
             const VkResolveModeFlagBits resolveMode =
                 isYUVExternalFormat ? VK_RESOLVE_MODE_EXTERNAL_FORMAT_DOWNSAMPLE_ANDROID
                 : desc.hasColorResolveAttachment(colorIndexGL) ? VK_RESOLVE_MODE_AVERAGE_BIT
@@ -469,7 +477,7 @@ void DeriveRenderingInfo(Renderer *renderer,
                 angleFormat.stencilBits != 0 && desc.hasStencilResolveAttachment();
 
             const VkImageLayout layout = ConvertImageLayoutToVkImageLayout(
-                renderer, static_cast<vk::ImageLayout>(ops[attachmentCount].initialLayout));
+                static_cast<vk::ImageLayout>(ops[attachmentCount].initialLayout));
             const VkImageLayout resolveImageLayout =
                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             const VkResolveModeFlagBits depthResolveMode =
@@ -644,9 +652,9 @@ void UnpackAttachmentDesc(Renderer *renderer,
     desc->stencilStoreOp =
         ConvertRenderPassStoreOpToVkStoreOp(static_cast<RenderPassStoreOp>(ops.stencilStoreOp));
     desc->initialLayout =
-        ConvertImageLayoutToVkImageLayout(renderer, static_cast<ImageLayout>(ops.initialLayout));
+        ConvertImageLayoutToVkImageLayout(static_cast<ImageLayout>(ops.initialLayout));
     desc->finalLayout =
-        ConvertImageLayoutToVkImageLayout(renderer, static_cast<ImageLayout>(ops.finalLayout));
+        ConvertImageLayoutToVkImageLayout(static_cast<ImageLayout>(ops.finalLayout));
 }
 
 struct AttachmentInfo
@@ -662,7 +670,8 @@ void UnpackColorResolveAttachmentDesc(Renderer *renderer,
                                       VkAttachmentDescription2 *desc,
                                       angle::FormatID formatID,
                                       const AttachmentInfo &info,
-                                      ImageLayout finalLayout)
+                                      VkImageLayout initialLayout,
+                                      VkImageLayout finalLayout)
 {
     *desc        = {};
     desc->sType  = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
@@ -686,8 +695,8 @@ void UnpackColorResolveAttachmentDesc(Renderer *renderer,
         info.isInvalidated ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
     desc->stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     desc->stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    desc->initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    desc->finalLayout    = ConvertImageLayoutToVkImageLayout(renderer, finalLayout);
+    desc->initialLayout  = initialLayout;
+    desc->finalLayout    = finalLayout;
 }
 
 void UnpackDepthStencilResolveAttachmentDesc(vk::ErrorContext *context,
@@ -2732,6 +2741,13 @@ angle::Result InitializePipelineFromLibraries(ErrorContext *context,
     if (context->getFeatures().preferDynamicRendering.enabled && desc.getRenderPassFoveation())
     {
         createInfo.flags |= VK_PIPELINE_CREATE_RENDERING_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
+    }
+
+    if (context->getFeatures().supportsPipelineProtectedAccess.enabled)
+    {
+        createInfo.flags |= desc.hasPipelineProtectedAccess()
+                                ? VK_PIPELINE_CREATE_PROTECTED_ACCESS_ONLY_BIT_EXT
+                                : VK_PIPELINE_CREATE_NO_PROTECTED_ACCESS_BIT_EXT;
     }
 
     const std::array<VkPipeline, 3> pipelines = {
@@ -6301,10 +6317,7 @@ void DescriptorSetDesc::updateDescriptorSet(Renderer *renderer,
                         mDescriptorInfos[infoDescIndex + arrayElement];
                     VkDescriptorImageInfo &imageInfo = writeImages[arrayElement];
 
-                    ImageLayout imageLayout = static_cast<ImageLayout>(infoDesc.imageLayoutOrRange);
-
-                    imageInfo.imageLayout =
-                        ConvertImageLayoutToVkImageLayout(renderer, imageLayout);
+                    imageInfo.imageLayout = static_cast<VkImageLayout>(infoDesc.imageLayoutOrRange);
                     imageInfo.imageView = handles[infoDescIndex + arrayElement].imageView;
                     imageInfo.sampler   = handles[infoDescIndex + arrayElement].sampler;
                 }
@@ -6526,7 +6539,7 @@ void DescriptorSetDescBuilder::updatePreCacheActiveTextures(
                     textureVk->getImageViewSubresourceSerial(
                         samplerState, samplerUniform.isTexelFetchStaticUse());
 
-                ImageLayout imageLayout = textureVk->getImage().getCurrentImageLayout();
+                VkImageLayout imageLayout = textureVk->getImage().getCurrentLayout();
                 SetBitField(infoDesc.imageLayoutOrRange, imageLayout);
                 infoDesc.imageViewSerialOrOffset = imageViewSerial.viewSerial.getValue();
                 infoDesc.samplerOrBufferSerial   = samplerHelper.getSamplerSerial().getValue();
@@ -6927,7 +6940,7 @@ angle::Result DescriptorSetDescBuilder::updateImages(
                 // Note: binding.access is unused because it is implied by the shader.
 
                 DescriptorInfoDesc &infoDesc = mDesc.getInfoDesc(infoIndex);
-                SetBitField(infoDesc.imageLayoutOrRange, image->getCurrentImageLayout());
+                SetBitField(infoDesc.imageLayoutOrRange, image->getCurrentLayout());
                 memcpy(&infoDesc.imageSubresourceRange, &serial.subresource, sizeof(uint32_t));
                 infoDesc.imageViewSerialOrOffset = serial.viewSerial.getValue();
                 infoDesc.samplerOrBufferSerial   = 0;
@@ -6974,8 +6987,9 @@ angle::Result DescriptorSetDescBuilder::updateInputAttachments(
                         .getVariableById(gl::ShaderType::Fragment,
                                          sh::vk::spirv::kIdDepthInputAttachment)
                         .binding;
-                updateInputAttachment(context, depthBinding, ImageLayout::DepthStencilWriteAndInput,
-                                      imageView, serial, writeDescriptorDescs);
+                updateInputAttachment(context, depthBinding,
+                                      VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR, imageView, serial,
+                                      writeDescriptorDescs);
             }
 
             if (executable.usesStencilFramebufferFetch() &&
@@ -6991,7 +7005,7 @@ angle::Result DescriptorSetDescBuilder::updateInputAttachments(
                                          sh::vk::spirv::kIdStencilInputAttachment)
                         .binding;
                 updateInputAttachment(context, stencilBinding,
-                                      ImageLayout::DepthStencilWriteAndInput, imageView, serial,
+                                      VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR, imageView, serial,
                                       writeDescriptorDescs);
             }
         }
@@ -7024,8 +7038,8 @@ angle::Result DescriptorSetDescBuilder::updateInputAttachments(
         // rendering, there's a specific layout.
         updateInputAttachment(context, binding,
                               context->getFeatures().preferDynamicRendering.enabled
-                                  ? ImageLayout::ColorWriteAndInput
-                                  : ImageLayout::FragmentShaderWrite,
+                                  ? VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR
+                                  : VK_IMAGE_LAYOUT_GENERAL,
                               imageView, serial, writeDescriptorDescs);
     }
 
@@ -7035,7 +7049,7 @@ angle::Result DescriptorSetDescBuilder::updateInputAttachments(
 void DescriptorSetDescBuilder::updateInputAttachment(
     Context *context,
     uint32_t binding,
-    ImageLayout layout,
+    VkImageLayout layout,
     const vk::ImageView *imageView,
     ImageOrBufferViewSubresourceSerial serial,
     const WriteDescriptorDescs &writeDescriptorDescs)
@@ -7081,7 +7095,7 @@ size_t SharedCacheKeyManager<SharedCacheKeyT>::updateEmptySlotBits()
 }
 
 template <class SharedCacheKeyT>
-void SharedCacheKeyManager<SharedCacheKeyT>::addKey(const SharedCacheKeyT &key)
+void SharedCacheKeyManager<SharedCacheKeyT>::addKeyImpl(const SharedCacheKeyT &key)
 {
     // Search for available slots and use that if any
     size_t slot = 0;
@@ -7193,11 +7207,12 @@ void SharedCacheKeyManager<SharedCacheKeyT>::clear()
 }
 
 template <class SharedCacheKeyT>
-bool SharedCacheKeyManager<SharedCacheKeyT>::containsKey(const SharedCacheKeyT &key) const
+bool SharedCacheKeyManager<SharedCacheKeyT>::containsKeyWithOwnerEqual(
+    const SharedCacheKeyT &key) const
 {
     for (const SharedCacheKeyT &sharedCacheKey : mSharedCacheKeys)
     {
-        if (*key == *sharedCacheKey)
+        if (key.owner_equal(sharedCacheKey))
         {
             return true;
         }
@@ -7230,8 +7245,41 @@ bool SharedCacheKeyManager<SharedCacheKeyT>::allValidEntriesAreCached(ContextVk 
 
 // Explict instantiate for FramebufferCacheManager
 template class SharedCacheKeyManager<SharedFramebufferCacheKey>;
+template <>
+void SharedCacheKeyManager<SharedFramebufferCacheKey>::addKey(const SharedFramebufferCacheKey &key)
+{
+    addKeyImpl(key);
+}
+
 // Explict instantiate for DescriptorSetCacheManager
 template class SharedCacheKeyManager<SharedDescriptorSetCacheKey>;
+template <>
+void SharedCacheKeyManager<SharedDescriptorSetCacheKey>::addKey(
+    const SharedDescriptorSetCacheKey &key)
+{
+    // There are cases that same texture or buffer are bound in multiple binding point. When we have
+    // a cache miss, we end up looping binding point and calling addKey which may end up adding same
+    // key multiple times. This is a quick way to avoid that.
+    if (mLastAddedSharedCacheKey.owner_equal(key))
+    {
+        return;
+    }
+
+    // In case of the texture or buffer is part of many descriptorSets, lets not track it any more
+    // to alleviate the overhead associated with this. We will rely on eviction to free the
+    // descriptorSets when needed.
+    static constexpr size_t kMaxEmptySlots            = 4;
+    static constexpr size_t kMaxSharedCacheKeyTracked = kSlotBitCount * kMaxEmptySlots;
+    if (mSharedCacheKeys.size() >= kMaxSharedCacheKeyTracked)
+    {
+        return;
+    }
+
+    mLastAddedSharedCacheKey = key;
+    ASSERT(!containsKeyWithOwnerEqual(key));
+
+    addKeyImpl(key);
+}
 
 // PipelineCacheAccess implementation.
 std::unique_lock<angle::SimpleMutex> PipelineCacheAccess::getLock()
@@ -7664,14 +7712,18 @@ angle::Result RenderPassCache::MakeRenderPass(vk::ErrorContext *context,
             continue;
         }
 
+        ASSERT(static_cast<vk::ImageLayout>(ops[attachmentCount].initialLayout) !=
+                   vk::ImageLayout::SharedPresent ||
+               static_cast<vk::ImageLayout>(ops[attachmentCount].finalLayout) ==
+                   vk::ImageLayout::SharedPresent);
+
         VkAttachmentReference2 colorRef = {};
         colorRef.sType                  = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
         colorRef.attachment             = attachmentCount.get();
-        colorRef.layout =
-            needInputAttachments
-                ? VK_IMAGE_LAYOUT_GENERAL
-                : vk::ConvertImageLayoutToVkImageLayout(
-                      renderer, static_cast<vk::ImageLayout>(ops[attachmentCount].initialLayout));
+        colorRef.layout                 = needInputAttachments
+                                              ? VK_IMAGE_LAYOUT_GENERAL
+                                              : vk::ConvertImageLayoutToVkImageLayout(static_cast<vk::ImageLayout>(
+                                    ops[attachmentCount].initialLayout));
         colorRef.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         colorAttachmentRefs.push_back(colorRef);
 
@@ -7717,7 +7769,7 @@ angle::Result RenderPassCache::MakeRenderPass(vk::ErrorContext *context,
         depthStencilAttachmentRef.sType      = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
         depthStencilAttachmentRef.attachment = attachmentCount.get();
         depthStencilAttachmentRef.layout     = ConvertImageLayoutToVkImageLayout(
-            renderer, static_cast<vk::ImageLayout>(ops[attachmentCount].initialLayout));
+            static_cast<vk::ImageLayout>(ops[attachmentCount].initialLayout));
         depthStencilAttachmentRef.aspectMask =
             VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 
@@ -7768,10 +7820,16 @@ angle::Result RenderPassCache::MakeRenderPass(vk::ErrorContext *context,
             continue;
         }
 
+        const VkImageLayout finalLayout =
+            ConvertImageLayoutToVkImageLayout(colorResolveImageLayout[colorIndexGL]);
+        const VkImageLayout initialLayout = (finalLayout == VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR
+                                                 ? VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR
+                                                 : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
         VkAttachmentReference2 colorRef = {};
         colorRef.sType                  = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
         colorRef.attachment             = attachmentCount.get();
-        colorRef.layout                 = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        colorRef.layout                 = initialLayout;
         colorRef.aspectMask             = VK_IMAGE_ASPECT_COLOR_BIT;
 
         // If color attachment is invalidated, try to remove its resolve attachment altogether.
@@ -7788,8 +7846,8 @@ angle::Result RenderPassCache::MakeRenderPass(vk::ErrorContext *context,
 
         vk::UnpackColorResolveAttachmentDesc(
             renderer, &attachmentDescs[attachmentCount.get()], attachmentFormatID,
-            {desc.hasColorUnresolveAttachment(colorIndexGL), isInvalidated, false},
-            colorResolveImageLayout[colorIndexGL]);
+            {desc.hasColorUnresolveAttachment(colorIndexGL), isInvalidated, false}, initialLayout,
+            finalLayout);
 
 #if defined(ANGLE_PLATFORM_ANDROID)
         // For rendering to YUV, chain on the external format info to the resolve attachment

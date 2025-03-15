@@ -204,9 +204,9 @@ struct SwapchainImage : angle::NonCopyable
 
 enum class ImageAcquireState
 {
-    Ready,
-    NeedToAcquire,
+    Unacquired,
     NeedToProcessResult,
+    Ready,
 };
 
 // Associated data for a call to vkAcquireNextImageKHR without necessarily holding the share group
@@ -252,7 +252,7 @@ struct UnlockedAcquireResult : angle::NonCopyable
 struct ImageAcquireOperation : angle::NonCopyable
 {
     // Initially image needs to be acquired.
-    ImageAcquireState state = ImageAcquireState::NeedToAcquire;
+    ImageAcquireState state = ImageAcquireState::Unacquired;
 
     // No synchronization is necessary when making the vkAcquireNextImageKHR call since it is ONLY
     // possible on a thread where Surface is current.
@@ -338,17 +338,11 @@ class WindowSurfaceVk : public SurfaceVk
 
     egl::Error setRenderBuffer(EGLint renderBuffer) override;
 
-    bool isSharedPresentMode() const
-    {
-        return (mSwapchainPresentMode == vk::PresentMode::SharedDemandRefreshKHR ||
-                mSwapchainPresentMode == vk::PresentMode::SharedContinuousRefreshKHR);
-    }
+    bool isSharedPresentMode() const { return IsSharedPresentMode(mSwapchainPresentMode); }
 
     bool isSharedPresentModeDesired() const
     {
-        vk::PresentMode desiredSwapchainPresentMode = getDesiredSwapchainPresentMode();
-        return (desiredSwapchainPresentMode == vk::PresentMode::SharedDemandRefreshKHR ||
-                desiredSwapchainPresentMode == vk::PresentMode::SharedContinuousRefreshKHR);
+        return IsSharedPresentMode(getDesiredSwapchainPresentMode());
     }
 
     egl::Error lockSurface(const egl::Display *display,
@@ -364,7 +358,7 @@ class WindowSurfaceVk : public SurfaceVk
     egl::Error detachFromFramebuffer(const gl::Context *context,
                                      gl::Framebuffer *framebuffer) override;
 
-    angle::Result onSharedPresentContextFlush(const gl::Context *context);
+    angle::Result onSharedPresentContextFlush(ContextVk *contextVk);
 
     bool hasStagedUpdates() const;
 
@@ -373,49 +367,64 @@ class WindowSurfaceVk : public SurfaceVk
     EGLint getCompressionRate(const egl::Display *display) const override;
 
   protected:
-    angle::Result swapImpl(const gl::Context *context,
+    angle::Result swapImpl(ContextVk *contextVk,
                            const EGLint *rects,
                            EGLint n_rects,
                            const void *pNextChain);
 
     EGLNativeWindowType mNativeWindowType;
     VkSurfaceKHR mSurface;
-    VkSurfaceCapabilitiesKHR mSurfaceCaps;
     VkBool32 mSupportsProtectedSwapchain;
 
   private:
-    virtual angle::Result createSurfaceVk(vk::ErrorContext *context, gl::Extents *extentsOut) = 0;
+    // Present modes that are compatible with the current mode.  If mDesiredSwapchainPresentMode is
+    // in this list, mode switch can happen without the need to recreate the swapchain.
+    // There are currently only 6 possible present modes but vector is bigger for a workaround.
+    static constexpr uint32_t kCompatiblePresentModesSize = 10;
+    using CompatiblePresentModes =
+        angle::FixedVector<VkPresentModeKHR, kCompatiblePresentModesSize>;
+
+    static bool IsSharedPresentMode(vk::PresentMode presentMode)
+    {
+        return (presentMode == vk::PresentMode::SharedDemandRefreshKHR ||
+                presentMode == vk::PresentMode::SharedContinuousRefreshKHR);
+    }
+
+    virtual angle::Result createSurfaceVk(vk::ErrorContext *context)          = 0;
     virtual angle::Result getCurrentWindowSize(vk::ErrorContext *context,
-                                               gl::Extents *extentsOut)                       = 0;
+                                               gl::Extents *extentsOut) const = 0;
 
     vk::PresentMode getDesiredSwapchainPresentMode() const;
     void setDesiredSwapchainPresentMode(vk::PresentMode presentMode);
     void setDesiredSwapInterval(EGLint interval);
 
     angle::Result initializeImpl(DisplayVk *displayVk, bool *anyMatchesOut);
-    angle::Result recreateSwapchain(ContextVk *contextVk, const gl::Extents &extents);
-    angle::Result createSwapChain(vk::ErrorContext *context, const gl::Extents &extents);
-    angle::Result collectOldSwapchain(ContextVk *contextVk, VkSwapchainKHR swapchain);
-    angle::Result queryAndAdjustSurfaceCaps(ContextVk *contextVk,
-                                            VkSurfaceCapabilitiesKHR *surfaceCaps);
-    angle::Result checkForOutOfDateSwapchain(ContextVk *contextVk, bool forceRecreate);
+    void invalidateSwapchain(vk::ErrorContext *context);
+    angle::Result recreateSwapchain(vk::ErrorContext *context);
+    angle::Result createSwapChain(vk::ErrorContext *context);
+    angle::Result collectOldSwapchain(vk::ErrorContext *context, VkSwapchainKHR swapchain);
+    angle::Result queryAndAdjustSurfaceCaps(
+        vk::ErrorContext *context,
+        vk::PresentMode presentMode,
+        VkSurfaceCapabilitiesKHR *surfaceCapsOut,
+        CompatiblePresentModes *compatiblePresentModesOut) const;
+    void adjustSurfaceExtent(VkExtent2D *extent) const;
+    angle::Result checkForOutOfDateSwapchain(vk::ErrorContext *context, bool forceRecreate);
     angle::Result resizeSwapchainImages(vk::ErrorContext *context, uint32_t imageCount);
-    void releaseSwapchainImages(ContextVk *contextVk);
+    void releaseSwapchainImages(vk::Renderer *renderer);
     void destroySwapChainImages(DisplayVk *displayVk);
-    angle::Result prepareForAcquireNextSwapchainImage(const gl::Context *context,
-                                                      bool forceSwapchainRecreate);
+    angle::Result prepareForAcquireNextSwapchainImage(vk::ErrorContext *context);
     // Called when a swapchain image whose acquisition was deferred must be acquired.  This method
     // will recreate the swapchain (if needed due to present returning OUT_OF_DATE, swap interval
     // changing, surface size changing etc, by calling prepareForAcquireNextSwapchainImage()) and
     // call the doDeferredAcquireNextImageWithUsableSwapchain() method.
-    angle::Result doDeferredAcquireNextImage(const gl::Context *context,
-                                             bool forceSwapchainRecreate);
+    angle::Result doDeferredAcquireNextImage(vk::ErrorContext *context);
     // Calls acquireNextSwapchainImage() and sets up the acquired image.  On some platforms,
     // vkAcquireNextImageKHR returns OUT_OF_DATE instead of present, so this function may still
     // recreate the swapchain.  The main difference with doDeferredAcquireNextImage is that it does
     // not check for surface property changes for the purposes of swapchain recreation (because
     // that's already done by prepareForAcquireNextSwapchainImage.
-    angle::Result doDeferredAcquireNextImageWithUsableSwapchain(const gl::Context *context);
+    angle::Result doDeferredAcquireNextImageWithUsableSwapchain(vk::ErrorContext *context);
     // This method calls vkAcquireNextImageKHR() to acquire the next swapchain image or to process
     // unlocked ANI result.  It is scheduled to be called later by deferAcquireNextImage().
     VkResult acquireNextSwapchainImage(vk::ErrorContext *context);
@@ -430,6 +439,7 @@ class WindowSurfaceVk : public SurfaceVk
                                           VkResult result,
                                           bool *presentOutOfDate);
     angle::Result prePresentSubmit(ContextVk *contextVk, const vk::Semaphore &presentSemaphore);
+    angle::Result recordPresentLayoutBarrierIfNecessary(ContextVk *contextVk);
     angle::Result present(ContextVk *contextVk,
                           const EGLint *rects,
                           EGLint n_rects,
@@ -445,6 +455,7 @@ class WindowSurfaceVk : public SurfaceVk
     // not ahead of the frame being rendered by *one* frame.
     angle::Result throttleCPU(vk::ErrorContext *context, const QueueSerial &currentSubmitSerial);
 
+    void mergeImageResourceUses();
     // Finish all GPU operations on the surface
     angle::Result finish(vk::ErrorContext *context);
 
@@ -461,6 +472,8 @@ class WindowSurfaceVk : public SurfaceVk
     angle::FormatID getIntendedFormatID(vk::Renderer *renderer);
     angle::FormatID getActualFormatID(vk::Renderer *renderer);
 
+    bool mIsSurfaceSizedBySwapchain;
+
     std::vector<vk::PresentMode> mPresentModes;
 
     VkSwapchainKHR mSwapchain;      // Current swapchain (same as last created or NULL)
@@ -476,11 +489,7 @@ class WindowSurfaceVk : public SurfaceVk
     VkImageCompressionFlagBitsEXT mCompressionFlags;
     VkImageCompressionFixedRateFlagsEXT mFixedRateFlags;
 
-    // Present modes that are compatible with the current mode.  If mDesiredSwapchainPresentMode is
-    // in this list, mode switch can happen without the need to recreate the swapchain.
-    // There are currently only 6 possible present modes but vector is bigger for a workaround.
-    static constexpr uint32_t kCompatiblePresentModesSize = 10;
-    angle::FixedVector<VkPresentModeKHR, kCompatiblePresentModesSize> mCompatiblePresentModes;
+    CompatiblePresentModes mCompatiblePresentModes;
 
     // A circular buffer that stores the serial of the submission fence of the context on every
     // swap. The CPU is throttled by waiting for the 2nd previous serial to finish.  This should

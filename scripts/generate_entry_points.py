@@ -57,99 +57,10 @@ INIT_DICT = {
     "clIcdGetPlatformIDsKHR": "true",
 }
 
-# These are the only entry points that are allowed while pixel local storage is active.
-PLS_ALLOW_LIST = {
-    "ActiveTexture",
-    "BindBuffer",
-    "BindBufferBase",
-    "BindBufferRange",
-    "BindFramebuffer",
-    "BindSampler",
-    "BindTexture",
-    "BindVertexArray",
-    "BlendEquation",
-    "BlendEquationSeparate",
-    "BlendFunc",
-    "BlendFuncSeparate",
-    "BlitFramebuffer",
-    "BufferData",
-    "BufferSubData",
-    "CheckFramebufferStatus",
-    "ClipControlEXT",
-    "ColorMask",
-    "CullFace",
-    "DepthFunc",
-    "DepthMask",
-    "DepthRangef",
-    "Disable",
-    "DisableVertexAttribArray",
-    "DispatchComputeIndirect",
-    "DrawBuffers",
-    "Enable",
-    "EnableClientState",
-    "EnableVertexAttribArray",
-    "EndPixelLocalStorageANGLE",
-    "FenceSync",
-    "FlushMappedBufferRange",
-    "FramebufferMemorylessPixelLocalStorageANGLE",
-    "FramebufferPixelLocalStorageInterruptANGLE",
-    "FramebufferRenderbuffer",
-    "FrontFace",
-    "MapBufferRange",
-    "PixelLocalStorageBarrierANGLE",
-    "ProvokingVertexANGLE",
-    "ReadBuffer",
-    "ReadPixels",
-    "Scissor",
-    "StencilFunc",
-    "StencilFuncSeparate",
-    "StencilMask",
-    "StencilMaskSeparate",
-    "StencilOp",
-    "StencilOpSeparate",
-    "UnmapBuffer",
-    "UseProgram",
-    "ValidateProgram",
-    "Viewport",
-}
-PLS_ALLOW_WILDCARDS = [
-    "BlendEquationSeparatei*",
-    "BlendEquationi*",
-    "BlendFuncSeparatei*",
-    "BlendFunci*",
-    "ClearBuffer*",
-    "ColorMaski*",
-    "CopyTexImage*",
-    "CopyTexSubImage*",
-    "DebugMessageCallback*",
-    "DebugMessageControl*",
-    "DebugMessageInsert*",
-    "Delete*",
-    "Disablei*",
-    "DrawArrays*",
-    "DrawElements*",
-    "DrawRangeElements*",
-    "Enablei*",
-    "FramebufferParameter*",
-    "FramebufferTexture*",
-    "Gen*",
-    "Get*",
-    "Is*",
-    "ObjectLabel*",
-    "ObjectPtrLabel*",
-    "PolygonMode*",
-    "PolygonOffset*",
-    "PopDebugGroup*",
-    "PushDebugGroup*",
-    "SamplerParameter*",
-    "TexParameter*",
-    "Uniform*",
-    "VertexAttrib*",
-]
-
 # These entry points implicitly disable pixel local storage (if active) before running and before
 # validation.
 PLS_DISABLE_LIST = {
+    "glBeginTransformFeedback",
     "glBlitFramebuffer",
     "glBindFramebuffer",
     "glCopyTexImage2D",
@@ -157,6 +68,7 @@ PLS_DISABLE_LIST = {
     "glFramebufferMemorylessPixelLocalStorageANGLE",
     "glFramebufferRenderbuffer",
     "glReadPixels",
+    "glStartTilingQCOM",
 }
 PLS_DISABLE_WILDCARDS = [
     "glCopyTexSubImage*",
@@ -1120,7 +1032,6 @@ FORMAT_DICT = {
     "EGLTimeKHR": UNSIGNED_LONG_LONG_FORMAT,
     "EGLImageKHR": POINTER_FORMAT,
     "EGLStreamKHR": POINTER_FORMAT,
-    "EGLFrameTokenANGLE": HEX_LONG_LONG_FORMAT,
     # CL-specific types
     "size_t": "%zu",
     "cl_char": "%hhd",
@@ -1702,11 +1613,6 @@ def is_aliasing_excepted(api, cmd_name):
     return api == apis.GLES and cmd_name in ALIASING_EXCEPTIONS
 
 
-def is_allowed_with_active_pixel_local_storage(name):
-    return name in PLS_ALLOW_LIST or any(
-        [fnmatch.fnmatchcase(name, entry) for entry in PLS_ALLOW_WILDCARDS])
-
-
 def is_implicit_pls_disable_command(name):
     return name in PLS_DISABLE_LIST or any(
         [fnmatch.fnmatchcase(name, entry) for entry in PLS_DISABLE_WILDCARDS])
@@ -1753,9 +1659,6 @@ def get_validation_expression(api, cmd_name, entry_point_name, internal_params, 
                                                                       cmd_name) else ["context"]
     expr = "Validate{name}({params})".format(
         name=name, params=", ".join(extra_params + [entry_point_name] + internal_params))
-    if not is_gles1 and not is_allowed_with_active_pixel_local_storage(name):
-        expr = "(ValidatePixelLocalStorageInactive({extra_params}, {entry_point_name}) && {expr})".format(
-            extra_params=", ".join(private_params), entry_point_name=entry_point_name, expr=expr)
     return expr
 
 
@@ -3338,7 +3241,6 @@ def get_prepare_swap_buffers_call(api, cmd_name, params):
     if cmd_name not in [
             "eglSwapBuffers",
             "eglSwapBuffersWithDamageKHR",
-            "eglSwapBuffersWithFrameTokenANGLE",
             "eglQuerySurface",
             "eglQuerySurface64KHR",
     ]:
@@ -3390,9 +3292,8 @@ def get_unlocked_tail_call(api, cmd_name):
     #
     # - eglPrepareSwapBuffersANGLE -> Calls vkAcquireNextImageKHR in tail call
     #
-    # - eglSwapBuffers, eglSwapBuffersWithDamageKHR and
-    #   eglSwapBuffersWithFrameTokenANGLE -> May throttle the CPU in tail call or
-    #   calls native EGL function
+    # - eglSwapBuffers and eglSwapBuffersWithDamageKHR -> May throttle the CPU
+    #   in tail call or calls native EGL function
     #
     # - eglClientWaitSyncKHR, eglClientWaitSync, glClientWaitSync,
     #   glFinishFenceNV -> May wait on fence in tail call or call native EGL function
@@ -3415,8 +3316,8 @@ def get_unlocked_tail_call(api, cmd_name):
     if (cmd_name in [
             'eglDestroySurface', 'eglMakeCurrent', 'eglReleaseThread', 'eglCreateWindowSurface',
             'eglCreatePlatformWindowSurface', 'eglCreatePlatformWindowSurfaceEXT',
-            'eglPrepareSwapBuffersANGLE', 'eglSwapBuffersWithFrameTokenANGLE', 'glFinishFenceNV',
-            'glCompileShader', 'glLinkProgram', 'glShaderBinary', 'glFlush', 'glFinish'
+            'eglPrepareSwapBuffersANGLE', 'glFinishFenceNV', 'glCompileShader', 'glLinkProgram',
+            'glShaderBinary', 'glFlush', 'glFinish'
     ] or cmd_name.startswith('glTexImage2D') or cmd_name.startswith('glTexImage3D') or
             cmd_name.startswith('glTexSubImage2D') or cmd_name.startswith('glTexSubImage3D') or
             cmd_name.startswith('glCompressedTexImage2D') or

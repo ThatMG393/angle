@@ -104,13 +104,6 @@
             ]
         },
         {
-            "name": "supports_GGP_frame_token",
-            "category": "Features",
-            "description": [
-                "VkDevice supports the VK_GGP_frame_token extension"
-            ]
-        },
-        {
             "name": "supports_external_memory_fd",
             "category": "Features",
             "description": [
@@ -278,6 +271,14 @@
                 "Enable MSRTSS for each image initialization if available"
             ],
             "issue": "http://anglebug.com/42267057"
+        },
+        {
+            "name": "supports_device_fault",
+            "category": "Features",
+            "description": [
+                "VkDevice supports the VK_EXT_device_fault extension"
+            ],
+            "issue": "http://issuetracker.google.com/399478440"
         },
         {
             "name": "supports_multiview",
@@ -553,6 +554,17 @@
                 "Works around a bug on platforms which destroy oldSwapchain in vkCreateSwapchainKHR."
             ],
             "issue": "http://anglebug.com/42263629"
+        },
+        {
+            "name": "destroy_old_swapchain_in_shared_present_mode",
+            "category": "Workarounds",
+            "description": [
+                "Instead of passing an oldSwapchain to VkSwapchainCreateInfoKHR, wait for queue to ",
+                "be idle and destroy the swapchain immediately. Works around a bug on platforms ",
+                "which may return VK_ERROR_NATIVE_WINDOW_IN_USE_KHR from vkCreateSwapchainKHR ",
+                "if use the oldSwapchain pointer."
+            ],
+            "issue": "http://anglebug.com/42262606"
         },
         {
             "name": "force_texture_lod_offset_1",
@@ -1241,12 +1253,12 @@
             "issue": "https://anglebug.com/42265839"
         },
         {
-            "name": "has_effective_pipeline_cache_serialization",
+            "name": "skip_pipeline_cache_serialization",
             "category": "Features",
             "description": [
-                "Whether the implementation serializes the Vulkan pipeline cache effectively. ",
-                "On some implementations, pipeline cache serialization returns no data, so there ",
-                "is no benefit to serializing it"
+                "Whether to serialize the Vulkan pipeline cache data. ",
+                "On some implementations, pipeline cache serialization returns no data",
+                "or very big data,so there is no benefit to serializing it."
             ],
             "issue": "https://anglebug.com/42265839"
         },
@@ -1265,14 +1277,6 @@
                 "VkDevice supports the VK_EXT_pipeline_protected_access extension"
             ],
             "issue": "https://anglebug.com/42266183"
-        },
-        {
-            "name": "supports_mixed_read_write_depth_stencil_layouts",
-            "category": "Features",
-            "description": [
-                "VkDevice supports the mixed read and write depth/stencil layouts introduced by VK_KHR_maintenance2"
-            ],
-            "issue": "https://anglebug.com/42266364"
         },
         {
             "name": "supports_maintenance5",

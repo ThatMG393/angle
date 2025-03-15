@@ -1351,7 +1351,7 @@ bool ValidateCreateMemoryObjectsEXT(const Context *context,
         return false;
     }
 
-    return ValidateGenOrDelete(context, entryPoint, n);
+    return ValidateGenOrDelete(context, entryPoint, n, memoryObjects);
 }
 
 bool ValidateDeleteMemoryObjectsEXT(const Context *context,
@@ -1365,7 +1365,7 @@ bool ValidateDeleteMemoryObjectsEXT(const Context *context,
         return false;
     }
 
-    return ValidateGenOrDelete(context, entryPoint, n);
+    return ValidateGenOrDelete(context, entryPoint, n, memoryObjects);
 }
 
 bool ValidateGetMemoryObjectParameterivEXT(const Context *context,
@@ -1582,7 +1582,7 @@ bool ValidateDeleteSemaphoresEXT(const Context *context,
         return false;
     }
 
-    return ValidateGenOrDelete(context, entryPoint, n);
+    return ValidateGenOrDelete(context, entryPoint, n, semaphores);
 }
 
 bool ValidateGenSemaphoresEXT(const Context *context,
@@ -1596,7 +1596,7 @@ bool ValidateGenSemaphoresEXT(const Context *context,
         return false;
     }
 
-    return ValidateGenOrDelete(context, entryPoint, n);
+    return ValidateGenOrDelete(context, entryPoint, n, semaphores);
 }
 
 bool ValidateGetSemaphoreParameterui64vEXT(const Context *context,
@@ -1842,7 +1842,7 @@ bool ValidateGetSamplerParameterIivOES(const Context *context,
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kExtensionNotEnabled);
         return false;
     }
-    return ValidateGetSamplerParameterBase(context, entryPoint, sampler, pname, nullptr);
+    return ValidateGetSamplerParameterBase(context, entryPoint, sampler, pname, nullptr, params);
 }
 
 bool ValidateGetSamplerParameterIuivOES(const Context *context,
@@ -1861,7 +1861,7 @@ bool ValidateGetSamplerParameterIuivOES(const Context *context,
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kExtensionNotEnabled);
         return false;
     }
-    return ValidateGetSamplerParameterBase(context, entryPoint, sampler, pname, nullptr);
+    return ValidateGetSamplerParameterBase(context, entryPoint, sampler, pname, nullptr, params);
 }
 
 bool ValidateSamplerParameterIivOES(const Context *context,
@@ -1918,7 +1918,8 @@ bool ValidateGetSamplerParameterIivEXT(const Context *context,
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kExtensionNotEnabled);
         return false;
     }
-    return ValidateGetSamplerParameterBase(context, entryPoint, samplerPacked, pname, nullptr);
+    return ValidateGetSamplerParameterBase(context, entryPoint, samplerPacked, pname, nullptr,
+                                           params);
 }
 
 bool ValidateGetSamplerParameterIuivEXT(const Context *context,
@@ -1937,7 +1938,8 @@ bool ValidateGetSamplerParameterIuivEXT(const Context *context,
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kExtensionNotEnabled);
         return false;
     }
-    return ValidateGetSamplerParameterBase(context, entryPoint, samplerPacked, pname, nullptr);
+    return ValidateGetSamplerParameterBase(context, entryPoint, samplerPacked, pname, nullptr,
+                                           params);
 }
 
 bool ValidateGetTexParameterIivEXT(const Context *context,
@@ -2128,11 +2130,14 @@ bool ValidatePLSCommon(const Context *context,
             return false;
         }
     }
-    else
+    else if (expectedStatus == PLSExpectedStatus::Inactive)
     {
-        // PLSExpectedStatus::Inactive is validated by the allow list.
-        ASSERT(expectedStatus != PLSExpectedStatus::Inactive ||
-               context->getState().getPixelLocalStorageActivePlanes() == 0);
+        // INVALID_OPERATION is generated if PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE is nonzero.
+        if (context->getState().getPixelLocalStorageActivePlanes() != 0)
+        {
+            ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kPLSActive);
+            return false;
+        }
     }
 
     return true;
@@ -2465,17 +2470,17 @@ bool ValidateBeginPixelLocalStorageANGLE(const Context *context,
         return false;
     }
 
-    // INVALID_OPERATION is generated if RASTERIZER_DISCARD is enabled.
-    if (state.isRasterizerDiscardEnabled())
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kPLSRasterizerDiscardEnabled);
-        return false;
-    }
-
     // INVALID_OPERATION is generated if TRANSFORM_FEEDBACK_ACTIVE is true.
     if (state.isTransformFeedbackActive())
     {
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kPLSTransformFeedbackActive);
+        return false;
+    }
+
+    // INVALID_OPERATION is generated if QCOM_tiled_rendering is active.
+    if (context->getPrivateState().isTiledRendering())
+    {
+        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kPLSTiledRenderingActive);
         return false;
     }
 

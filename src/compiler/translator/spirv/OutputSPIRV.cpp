@@ -3589,6 +3589,8 @@ spirv::IdRef OutputSPIRVTraverser::createImageTextureBuiltIn(TIntermOperator *no
             break;
 
         case EOpTextureGather:
+        case EOpTextureGatherComp:
+        case EOpTextureGatherRef:
 
             // For shadow textures, refZ (same as Dref) is specified as the last argument.
             // Otherwise a component may be specified which defaults to 0 if not specified.
@@ -3606,9 +3608,11 @@ spirv::IdRef OutputSPIRVTraverser::createImageTextureBuiltIn(TIntermOperator *no
 
         case EOpTextureGatherOffset:
         case EOpTextureGatherOffsetComp:
+        case EOpTextureGatherOffsetRef:
 
         case EOpTextureGatherOffsets:
         case EOpTextureGatherOffsetsComp:
+        case EOpTextureGatherOffsetsRef:
 
             // textureGatherOffset and textureGatherOffsets have the following forms:
             //
@@ -3727,11 +3731,15 @@ spirv::IdRef OutputSPIRVTraverser::createImageTextureBuiltIn(TIntermOperator *no
         imageType.isSamplerBaseImage            = true;
         const spirv::IdRef extractedImageTypeId = mBuilder.getSpirvTypeData(imageType, nullptr).id;
 
-        // Use OpImage to get the image out of the sampled image.
-        const spirv::IdRef extractedImage = mBuilder.getNewId({});
-        spirv::WriteImage(mBuilder.getSpirvCurrentFunctionBlock(), extractedImageTypeId,
-                          extractedImage, image);
-        image = extractedImage;
+        // Use OpImage to get the image out of the sampled image.  Note that for sampler buffers,
+        // there is no sampled image type, and the image already has the non-sampled type.
+        if (!IsSamplerBuffer(samplerBasicType))
+        {
+            const spirv::IdRef extractedImage = mBuilder.getNewId({});
+            spirv::WriteImage(mBuilder.getSpirvCurrentFunctionBlock(), extractedImageTypeId,
+                              extractedImage, image);
+            image = extractedImage;
+        }
     }
 
     // Gather operands as necessary.
