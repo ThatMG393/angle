@@ -279,11 +279,6 @@ class Renderer : angle::NonCopyable
     bool hasBufferFormatFeatureBits(angle::FormatID format,
                                     const VkFormatFeatureFlags featureBits) const;
 
-    bool isAsyncCommandBufferResetAndGarbageCleanupEnabled() const
-    {
-        return mFeatures.asyncCommandBufferResetAndGarbageCleanup.enabled;
-    }
-
     ANGLE_INLINE egl::ContextPriority getDriverPriority(egl::ContextPriority priority)
     {
         return mCommandQueue.getDriverPriority(priority);
@@ -478,12 +473,10 @@ class Renderer : angle::NonCopyable
     angle::Result getOutsideRenderPassCommandBufferHelper(
         vk::ErrorContext *context,
         vk::SecondaryCommandPool *commandPool,
-        vk::SecondaryCommandMemoryAllocator *commandsAllocator,
         vk::OutsideRenderPassCommandBufferHelper **commandBufferHelperOut);
     angle::Result getRenderPassCommandBufferHelper(
         vk::ErrorContext *context,
         vk::SecondaryCommandPool *commandPool,
-        vk::SecondaryCommandMemoryAllocator *commandsAllocator,
         vk::RenderPassCommandBufferHelper **commandBufferHelperOut);
 
     void recycleOutsideRenderPassCommandBufferHelper(
@@ -701,6 +694,8 @@ class Renderer : angle::NonCopyable
     // VK_EXT_device_fault allows gathering more info if the device is lost.
     VkResult retrieveDeviceLostDetails() const;
 
+    bool supportsAstcHdr() const;
+
   private:
     angle::Result setupDevice(vk::ErrorContext *context,
                               const angle::FeatureOverrides &featureOverrides,
@@ -785,7 +780,6 @@ class Renderer : angle::NonCopyable
     template <typename CommandBufferHelperT, typename RecyclerT>
     angle::Result getCommandBufferImpl(vk::ErrorContext *context,
                                        vk::SecondaryCommandPool *commandPool,
-                                       vk::SecondaryCommandMemoryAllocator *commandsAllocator,
                                        RecyclerT *recycler,
                                        CommandBufferHelperT **commandBufferHelperOut);
 
@@ -900,10 +894,11 @@ class Renderer : angle::NonCopyable
     VkPhysicalDeviceUniformBufferStandardLayoutFeaturesKHR mUniformBufferStandardLayoutFeatures;
     VkPhysicalDeviceMaintenance3Properties mMaintenance3Properties;
     VkPhysicalDeviceFaultFeaturesEXT mFaultFeatures;
+    VkPhysicalDeviceASTCDecodeFeaturesEXT mPhysicalDeviceAstcDecodeFeatures;
 
     uint32_t mLegacyDitheringVersion = 0;
 
-    angle::PackedEnumBitSet<gl::ShadingRate, uint8_t> mSupportedFragmentShadingRates;
+    angle::PackedEnumBitSet<gl::ShadingRate, uint16_t> mSupportedFragmentShadingRates;
     angle::PackedEnumMap<gl::ShadingRate, VkSampleCountFlags>
         mSupportedFragmentShadingRateSampleCounts;
     std::vector<VkQueueFamilyProperties> mQueueFamilyProperties;
@@ -952,7 +947,7 @@ class Renderer : angle::NonCopyable
 
     // The mutex protects -
     // 1. initialization of the cache
-    // 2. Vulkan driver guarantess synchronization for read and write operations but the spec
+    // 2. Vulkan driver guarantees synchronization for read and write operations but the spec
     //    requires external synchronization when mPipelineCache is the dstCache of
     //    vkMergePipelineCaches. Lock the mutex if mergeProgramPipelineCachesToGlobalCache is
     //    enabled
@@ -1077,6 +1072,9 @@ class Renderer : angle::NonCopyable
 
     // Cached value for the buffer memory size limit.
     VkDeviceSize mMaxBufferMemorySizeLimit;
+
+    // Record submitted queue serials not belongs to any context.
+    vk::ResourceUse mSubmittedResourceUse;
 };
 
 ANGLE_INLINE Serial Renderer::generateQueueSerial(SerialIndex index)
@@ -1133,7 +1131,7 @@ ANGLE_INLINE angle::Result Renderer::checkCompletedCommandsAndCleanup(vk::ErrorC
 
 ANGLE_INLINE angle::Result Renderer::releaseFinishedCommands(vk::ErrorContext *context)
 {
-    return mCommandQueue.releaseFinishedCommands(context);
+    return mCommandQueue.releaseFinishedCommands(context, WhenToResetCommandBuffer::Now);
 }
 }  // namespace vk
 }  // namespace rx

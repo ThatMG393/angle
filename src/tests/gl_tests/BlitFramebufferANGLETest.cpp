@@ -497,8 +497,16 @@ TEST_P(BlitFramebufferANGLETest, BlitColorWithFlip)
     glBindFramebuffer(GL_READ_FRAMEBUFFER_ANGLE, mUserFBO);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER_ANGLE, mOriginalFBO);
 
-    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), getWindowWidth(), 0, 0,
-                      getWindowHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (getClientMajorVersion() < 3)
+    {
+        glBlitFramebufferNV(0, 0, getWindowWidth(), getWindowHeight(), getWindowWidth(), 0, 0,
+                            getWindowHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+    else
+    {
+        glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), getWindowWidth(), 0, 0,
+                          getWindowHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
 
     EXPECT_GL_NO_ERROR();
 
@@ -514,8 +522,17 @@ TEST_P(BlitFramebufferANGLETest, BlitColorWithFlip)
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER_ANGLE, mOriginalFBO);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, getWindowHeight(),
-                      getWindowWidth(), 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    if (getClientMajorVersion() < 3)
+    {
+        glBlitFramebufferNV(0, 0, getWindowWidth(), getWindowHeight(), 0, getWindowHeight(),
+                            getWindowWidth(), 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+    else
+    {
+        glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, getWindowHeight(),
+                          getWindowWidth(), 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
 
     EXPECT_GL_NO_ERROR();
 
@@ -532,8 +549,17 @@ TEST_P(BlitFramebufferANGLETest, BlitColorWithFlip)
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER_ANGLE, mUserFBO);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), getWindowWidth(), 0, 0,
-                      getWindowHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    if (getClientMajorVersion() < 3)
+    {
+        glBlitFramebufferNV(0, 0, getWindowWidth(), getWindowHeight(), getWindowWidth(), 0, 0,
+                            getWindowHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+    else
+    {
+        glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), getWindowWidth(), 0, 0,
+                          getWindowHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
 
     EXPECT_GL_NO_ERROR();
 
@@ -549,8 +575,17 @@ TEST_P(BlitFramebufferANGLETest, BlitColorWithFlip)
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER_ANGLE, mUserFBO);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, getWindowHeight(),
-                      getWindowWidth(), 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    if (getClientMajorVersion() < 3)
+    {
+        glBlitFramebufferNV(0, 0, getWindowWidth(), getWindowHeight(), 0, getWindowHeight(),
+                            getWindowWidth(), 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+    else
+    {
+        glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, getWindowHeight(),
+                          getWindowWidth(), 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
 
     EXPECT_GL_NO_ERROR();
 
@@ -592,8 +627,16 @@ TEST_P(BlitFramebufferANGLETest, BlitColorWithMesaYFlipSrc)
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fboTargetWidth,
-                      fboTargetHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (getClientMajorVersion() < 3)
+    {
+        glBlitFramebufferNV(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fboTargetWidth,
+                            fboTargetHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+    else
+    {
+        glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fboTargetWidth,
+                          fboTargetHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
 
     EXPECT_GL_NO_ERROR();
 
@@ -633,10 +676,21 @@ TEST_P(BlitFramebufferANGLETest, BlitColorWithMesaYFlipDst)
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fboTargetWidth,
-                      fboTargetHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), getWindowWidth() / 2, 0,
-                      getWindowWidth(), getWindowHeight() / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (getClientMajorVersion() < 3)
+    {
+        glBlitFramebufferNV(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fboTargetWidth,
+                            fboTargetHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBlitFramebufferNV(0, 0, getWindowWidth(), getWindowHeight(), getWindowWidth() / 2, 0,
+                            getWindowWidth(), getWindowHeight() / 2, GL_COLOR_BUFFER_BIT,
+                            GL_NEAREST);
+    }
+    else
+    {
+        glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fboTargetWidth,
+                          fboTargetHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), getWindowWidth() / 2, 0,
+                          getWindowWidth(), getWindowHeight() / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
 
     glFramebufferParameteriMESA(GL_DRAW_FRAMEBUFFER_ANGLE, GL_FRAMEBUFFER_FLIP_Y_MESA, 0);
 
@@ -704,10 +758,20 @@ TEST_P(BlitFramebufferANGLETest, BlitColorWithMesaYFlipSrcDst)
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fboTargetWidth,
-                      fboTargetHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), fb0Width / 2, 0, fb0Width,
-                      fb0Height / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (getClientMajorVersion() < 3)
+    {
+        glBlitFramebufferNV(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fboTargetWidth,
+                            fboTargetHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBlitFramebufferNV(0, 0, getWindowWidth(), getWindowHeight(), fb0Width / 2, 0, fb0Width,
+                            fb0Height / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+    else
+    {
+        glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fboTargetWidth,
+                          fboTargetHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), fb0Width / 2, 0, fb0Width,
+                          fb0Height / 2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
 
     EXPECT_GL_NO_ERROR();
 
@@ -776,8 +840,16 @@ TEST_P(BlitFramebufferANGLETest, BlitColorWithMesaYFlipInteger)
     glClearColor(0.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fb1_target_width,
-                      fb1_target_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (getClientMajorVersion() < 3)
+    {
+        glBlitFramebufferNV(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fb1_target_width,
+                            fb1_target_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+    else
+    {
+        glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, fb1_target_width,
+                          fb1_target_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
 
     EXPECT_GL_NO_ERROR();
 
@@ -807,8 +879,17 @@ TEST_P(BlitFramebufferANGLETest, BlitColorWithMesaYFlipInteger)
     glFramebufferParameteriMESA(GL_DRAW_FRAMEBUFFER_ANGLE, GL_FRAMEBUFFER_FLIP_Y_MESA, 1);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    glBlitFramebuffer(0, 0, fb1_target_width, fb1_target_height, 0, 0, getWindowWidth(),
-                      getWindowHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    if (getClientMajorVersion() < 3)
+    {
+        glBlitFramebufferNV(0, 0, fb1_target_width, fb1_target_height, 0, 0, getWindowWidth(),
+                            getWindowHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+    else
+    {
+        glBlitFramebuffer(0, 0, fb1_target_width, fb1_target_height, 0, 0, getWindowWidth(),
+                          getWindowHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
 
     // And explicitly disable y-flip so that read does not implicitly use this flag.
     glFramebufferParameteriMESA(GL_DRAW_FRAMEBUFFER_ANGLE, GL_FRAMEBUFFER_FLIP_Y_MESA, 0);
@@ -3310,6 +3391,250 @@ TEST_P(BlitFramebufferTest, BlitFramebufferStencilClipNoIntersection)
 
     glBlitFramebuffer(0, 0, 4, 4, 1 << 24, 1 << 24, 1 << 25, 1 << 25, GL_STENCIL_BUFFER_BIT,
                       GL_NEAREST);
+    EXPECT_GL_NO_ERROR();
+}
+
+// Test that blit with FBOs with multiple color attachments of different size.
+TEST_P(BlitFramebufferTest, BlitWithDifferentSizesColorAttachments)
+{
+    GLFramebuffer srcFramebuffer;
+    glBindFramebuffer(GL_FRAMEBUFFER, srcFramebuffer);
+    constexpr GLint kWidth  = 32;
+    constexpr GLint kHeight = 48;
+    GLColor texture_pattern[kWidth * kHeight];
+
+    // Prepare texture pattern
+    for (int y = 0; y < kHeight; y++)
+    {
+        for (int x = 0; x < kWidth; x++)
+        {
+            switch ((x + 2 * y) % 3)
+            {
+                case 0:
+                    texture_pattern[y * kWidth + x] = GLColor::red;
+                    break;
+                case 1:
+                    texture_pattern[y * kWidth + x] = GLColor::green;
+                    break;
+                case 2:
+                    texture_pattern[y * kWidth + x] = GLColor::blue;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    GLTexture largeColorBuffer;
+    glBindTexture(GL_TEXTURE_2D, largeColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, kWidth, kHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 texture_pattern);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, largeColorBuffer,
+                           0);
+    EXPECT_GL_NO_ERROR();
+
+    GLTexture smallColorBuffer;
+    glBindTexture(GL_TEXTURE_2D, smallColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, kWidth / 2, kHeight / 2, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 nullptr);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, smallColorBuffer,
+                           0);
+    EXPECT_GL_NO_ERROR();
+
+    GLFramebuffer dstFramebuffer;
+    GLRenderbuffer dstRenderbuffer;
+    glBindFramebuffer(GL_FRAMEBUFFER, dstFramebuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, dstRenderbuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, kWidth, kHeight);
+    glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER,
+                              dstRenderbuffer);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    EXPECT_GL_NO_ERROR();
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, srcFramebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dstFramebuffer);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    glBlitFramebuffer(0, 0, kWidth / 2 + 1, kHeight / 2 + 1, 0, 0, kWidth / 2 + 1, kHeight / 2 + 1,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    EXPECT_GL_NO_ERROR();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, dstFramebuffer);
+
+    for (int x = 0; x < kWidth / 2; x++)
+    {
+        for (int y = 0; y < kHeight / 2; y++)
+        {
+            switch ((x + 2 * y) % 3)
+            {
+                case 0:
+                    EXPECT_PIXEL_COLOR_EQ(x, y, GLColor::red) << x << " " << y;
+                    break;
+                case 1:
+                    EXPECT_PIXEL_COLOR_EQ(x, y, GLColor::green) << x << " " << y;
+                    break;
+                case 2:
+                    EXPECT_PIXEL_COLOR_EQ(x, y, GLColor::blue) << x << " " << y;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    EXPECT_GL_NO_ERROR();
+}
+
+// Test that blit with FBOs with large color attachment and small depth attachment.
+TEST_P(BlitFramebufferTest, BlitLargeColorSmallDepthAttachments)
+{
+    constexpr GLint kWidth  = 32;
+    constexpr GLint kHeight = 48;
+    GLFramebuffer srcFramebuffer;
+    glBindFramebuffer(GL_FRAMEBUFFER, srcFramebuffer);
+    glDisable(GL_DEPTH_TEST);
+
+    GLTexture srcLargeColorBuffer;
+    glBindTexture(GL_TEXTURE_2D, srcLargeColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, kWidth, kHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 nullptr);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, srcLargeColorBuffer,
+                           0);
+    EXPECT_GL_NO_ERROR();
+
+    GLRenderbuffer srcSmallDepthBuffer;
+    glBindRenderbuffer(GL_RENDERBUFFER, srcSmallDepthBuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, kWidth / 2, kHeight / 2);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,
+                              srcSmallDepthBuffer);
+    ANGLE_GL_PROGRAM(drawGreen, essl3_shaders::vs::Simple(), essl3_shaders::fs::Green());
+    drawQuad(drawGreen, essl3_shaders::PositionAttrib(), 0.5f);
+
+    GLFramebuffer dstFramebuffer;
+    GLRenderbuffer dstColorBuffer;
+    glBindFramebuffer(GL_FRAMEBUFFER, dstFramebuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, dstColorBuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, kWidth, kHeight);
+    glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER,
+                              dstColorBuffer);
+    GLRenderbuffer dstDepthBuffer;
+    glBindRenderbuffer(GL_RENDERBUFFER, dstDepthBuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, kWidth, kHeight);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, dstDepthBuffer);
+    glClearDepthf(1.0f);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    EXPECT_GL_NO_ERROR();
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, srcFramebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dstFramebuffer);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    // The blit is larger than the size of srcFramebuffer, so the actual blit area is (kWidth / 2) *
+    // (kHeight / 2)
+    glBlitFramebuffer(0, 0, kWidth / 2 + 1, kHeight / 2 + 1, 0, 0, kWidth / 2 + 1, kHeight / 2 + 1,
+                      GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    EXPECT_GL_NO_ERROR();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, dstFramebuffer);
+
+    for (int x = 0; x < kWidth / 2; x++)
+    {
+        for (int y = 0; y < kHeight / 2; y++)
+        {
+            EXPECT_PIXEL_COLOR_EQ(x, y, GLColor::green) << x << " " << y;
+        }
+    }
+
+    ANGLE_GL_PROGRAM(drawRed, essl3_shaders::vs::Simple(), essl3_shaders::fs::Red());
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(false);
+    glDepthFunc(GL_LESS);
+    drawQuad(drawRed, essl3_shaders::PositionAttrib(), 0.7f);
+
+    for (int x = 0; x < kWidth / 2; x++)
+    {
+        for (int y = 0; y < kHeight / 2; y++)
+        {
+            EXPECT_PIXEL_COLOR_EQ(x, y, GLColor::green) << x << " " << y;
+        }
+    }
+
+    EXPECT_GL_NO_ERROR();
+}
+
+// Test that blit with FBOs with small color attachment and large depth attachment.
+TEST_P(BlitFramebufferTest, BlitSmallColorLargeDepthAttachments)
+{
+    constexpr GLint kWidth  = 32;
+    constexpr GLint kHeight = 48;
+    GLFramebuffer srcFramebuffer;
+    glBindFramebuffer(GL_FRAMEBUFFER, srcFramebuffer);
+    glDisable(GL_DEPTH_TEST);
+
+    GLTexture srcSmallColorBuffer;
+    glBindTexture(GL_TEXTURE_2D, srcSmallColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, kWidth / 2, kHeight / 2, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 nullptr);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, srcSmallColorBuffer,
+                           0);
+    EXPECT_GL_NO_ERROR();
+
+    GLRenderbuffer srcLargeDepthBuffer;
+    glBindRenderbuffer(GL_RENDERBUFFER, srcLargeDepthBuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, kWidth, kHeight);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,
+                              srcLargeDepthBuffer);
+    ANGLE_GL_PROGRAM(drawGreen, essl3_shaders::vs::Simple(), essl3_shaders::fs::Green());
+    drawQuad(drawGreen, essl3_shaders::PositionAttrib(), 0.5f);
+
+    GLFramebuffer dstFramebuffer;
+    GLRenderbuffer dstColorBuffer;
+    glBindFramebuffer(GL_FRAMEBUFFER, dstFramebuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, dstColorBuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, kWidth, kHeight);
+    glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER,
+                              dstColorBuffer);
+    GLRenderbuffer dstDepthBuffer;
+    glBindRenderbuffer(GL_RENDERBUFFER, dstDepthBuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, kWidth, kHeight);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, dstDepthBuffer);
+    glClearDepthf(1.0f);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    EXPECT_GL_NO_ERROR();
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, srcFramebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dstFramebuffer);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    // The blit is larger than the size of srcFramebuffer, so the actual blit area is (kWidth / 2) *
+    // (kHeight / 2)
+    glBlitFramebuffer(0, 0, kWidth / 2 + 1, kHeight / 2 + 1, 0, 0, kWidth / 2 + 1, kHeight / 2 + 1,
+                      GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    EXPECT_GL_NO_ERROR();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, dstFramebuffer);
+    for (int x = 0; x < kWidth / 2; x++)
+    {
+        for (int y = 0; y < kHeight / 2; y++)
+        {
+            EXPECT_PIXEL_COLOR_EQ(x, y, GLColor::green) << x << " " << y;
+        }
+    }
+
+    ANGLE_GL_PROGRAM(drawRed, essl3_shaders::vs::Simple(), essl3_shaders::fs::Red());
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(false);
+    glDepthFunc(GL_LESS);
+    drawQuad(drawRed, essl3_shaders::PositionAttrib(), 0.7f);
+
+    for (int x = 0; x < kWidth / 2; x++)
+    {
+        for (int y = 0; y < kHeight / 2; y++)
+        {
+            EXPECT_PIXEL_COLOR_EQ(x, y, GLColor::green) << x << " " << y;
+        }
+    }
+
     EXPECT_GL_NO_ERROR();
 }
 

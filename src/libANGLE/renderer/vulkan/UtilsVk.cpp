@@ -520,35 +520,6 @@ void SetStencilDynamicStateForUnused(vk::Renderer *renderer,
     commandBuffer->setStencilReference(0x00, 0x00);
 }
 
-void HandlePrimitiveRestart(ContextVk *contextVk,
-                            gl::DrawElementsType glIndexType,
-                            GLsizei indexCount,
-                            const uint8_t *srcPtr,
-                            uint8_t *outPtr)
-{
-    switch (glIndexType)
-    {
-        case gl::DrawElementsType::UnsignedByte:
-            if (contextVk->getFeatures().supportsIndexTypeUint8.enabled)
-            {
-                CopyLineLoopIndicesWithRestart<uint8_t, uint8_t>(indexCount, srcPtr, outPtr);
-            }
-            else
-            {
-                CopyLineLoopIndicesWithRestart<uint8_t, uint16_t>(indexCount, srcPtr, outPtr);
-            }
-            break;
-        case gl::DrawElementsType::UnsignedShort:
-            CopyLineLoopIndicesWithRestart<uint16_t, uint16_t>(indexCount, srcPtr, outPtr);
-            break;
-        case gl::DrawElementsType::UnsignedInt:
-            CopyLineLoopIndicesWithRestart<uint32_t, uint32_t>(indexCount, srcPtr, outPtr);
-            break;
-        default:
-            UNREACHABLE();
-    }
-}
-
 namespace unresolve
 {
 // The unresolve shader looks like the following, based on the number and types of unresolve
@@ -3855,7 +3826,7 @@ angle::Result UtilsVk::copyImageToBuffer(ContextVk *contextVk,
     ANGLE_TRY(src->initReinterpretedLayerImageView(
         contextVk, textureType, src->getAspectFlags(), swizzle, &srcView.get(), params.srcMip, 1,
         textureType == gl::TextureType::_2D ? params.srcLayer : 0, 1, VK_IMAGE_USAGE_SAMPLED_BIT,
-        linearFormat));
+        linearFormat, GL_NONE));
 
     vk::CommandBufferAccess access;
     access.onImageComputeShaderRead(src->getAspectFlags(), src);
@@ -4089,7 +4060,7 @@ angle::Result UtilsVk::transCodeEtcToBc(ContextVk *contextVk,
         ANGLE_TRY(dstImage->initReinterpretedLayerImageView(
             contextVk, gl::TextureType::_2D, VK_IMAGE_ASPECT_COLOR_BIT, gl::SwizzleState(),
             &scopedImageView.get(), dstLevel, 1, copyRegion->imageSubresource.baseArrayLayer + i, 1,
-            VK_IMAGE_USAGE_STORAGE_BIT, GetCompactibleUINTFormat(intendedFormat)));
+            VK_IMAGE_USAGE_STORAGE_BIT, GetCompactibleUINTFormat(intendedFormat), GL_NONE));
         imageInfo.imageView = scopedImageView.get().getHandle();
 
         VkDescriptorSet descriptorSet;
@@ -4340,12 +4311,12 @@ angle::Result UtilsVk::generateMipmapWithDraw(ContextVk *contextVk,
             vk::ImageView srcImageView;
             ANGLE_TRY(image->initReinterpretedLayerImageView(
                 contextVk, textureType, image->getAspectFlags(), swizzle, &srcImageView, srcLevelVk,
-                1, currentLayer, 1, imageUsageFlags, actualFormatID));
+                1, currentLayer, 1, imageUsageFlags, actualFormatID, GL_NONE));
 
             vk::ImageView dstImageView;
             ANGLE_TRY(image->initReinterpretedLayerImageView(
                 contextVk, textureType, image->getAspectFlags(), swizzle, &dstImageView, dstLevelVk,
-                1, currentLayer, 1, imageUsageFlags, actualFormatID));
+                1, currentLayer, 1, imageUsageFlags, actualFormatID, GL_NONE));
 
             vk::RenderPassCommandBuffer *commandBuffer = nullptr;
             ANGLE_TRY(startRenderPass(contextVk, image, &dstImageView, renderPassDesc, renderArea,
@@ -4982,11 +4953,11 @@ angle::Result LineLoopHelper::getIndexBufferForElementArrayBuffer(ContextVk *con
         ANGLE_TRACE_EVENT0("gpu.angle", "LineLoopHelper::getIndexBufferForElementArrayBuffer");
 
         void *srcDataMapping = nullptr;
-        ANGLE_TRY(elementArrayBufferVk->mapImpl(contextVk, GL_MAP_READ_BIT, &srcDataMapping));
+        ANGLE_TRY(elementArrayBufferVk->mapForReadAccessOnly(contextVk, &srcDataMapping));
         ANGLE_TRY(streamIndices(contextVk, glIndexType, indexCount,
                                 static_cast<const uint8_t *>(srcDataMapping) + elementArrayOffset,
                                 bufferOut, indexCountOut));
-        ANGLE_TRY(elementArrayBufferVk->unmapImpl(contextVk));
+        ANGLE_TRY(elementArrayBufferVk->unmapReadAccessOnly(contextVk));
         return angle::Result::Continue;
     }
 
@@ -5048,7 +5019,8 @@ angle::Result LineLoopHelper::streamIndices(ContextVk *contextVk,
 
     if (contextVk->getState().isPrimitiveRestartEnabled())
     {
-        HandlePrimitiveRestart(contextVk, glIndexType, indexCount, srcPtr, indices);
+        rx::StreamEmulatedLineLoopIndices(glIndexType, indexCount, srcPtr, indices,
+                                          !contextVk->getFeatures().supportsIndexTypeUint8.enabled);
     }
     else
     {

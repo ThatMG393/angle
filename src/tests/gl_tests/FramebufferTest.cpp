@@ -4494,14 +4494,14 @@ void main()
     // 2. change the no-attachment framebuffer size to 2*2, draw
     // works properly
     GLFramebuffer framebufferWithVariousSizeGrow;
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebufferWithVariousSizeGrow);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebufferWithVariousSizeGrow);
     for (int loop = 0; loop < 2; loop++)
     {
         GLuint defaultWidth  = 1 << loop;
         GLuint defaultHeight = 1 << loop;
-        glFramebufferParameteri(GL_DRAW_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_WIDTH, defaultWidth);
-        glFramebufferParameteri(GL_DRAW_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_HEIGHT, defaultHeight);
-        EXPECT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER));
+        glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_WIDTH, defaultWidth);
+        glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_HEIGHT, defaultHeight);
+        EXPECT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
 
         // Draw and check the FBO size
         validateSamplePass(query, defaultWidth, defaultHeight);
@@ -4514,14 +4514,14 @@ void main()
     // 2. change the no-attachment framebuffer size to 1*1, draw
     // works properly
     GLFramebuffer framebufferWithVariousSizeShrink;
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebufferWithVariousSizeShrink);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebufferWithVariousSizeShrink);
     for (int loop = 1; loop >= 0; loop--)
     {
         GLuint defaultWidth  = 1 << loop;
         GLuint defaultHeight = 1 << loop;
-        glFramebufferParameteri(GL_DRAW_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_WIDTH, defaultWidth);
-        glFramebufferParameteri(GL_DRAW_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_HEIGHT, defaultHeight);
-        EXPECT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER));
+        glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_WIDTH, defaultWidth);
+        glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_HEIGHT, defaultHeight);
+        EXPECT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
 
         // Draw and check the FBO size
         validateSamplePass(query, defaultWidth, defaultHeight);
@@ -4896,6 +4896,8 @@ void main()
 // KHR-GLES32.core.draw_buffers_indexed.color_masks
 TEST_P(FramebufferTest_ES31, ClearWithColorMasksRGB5A1)
 {
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_OES_draw_buffers_indexed"));
+
     constexpr int kSize  = 4;
     GLint maxDrawBuffers = 0;
     glGetIntegerv(GL_MAX_DRAW_BUFFERS, &maxDrawBuffers);
@@ -4942,22 +4944,22 @@ TEST_P(FramebufferTest_ES31, ClearWithColorMasksRGB5A1)
     {
         if (i % 4 == 0)
         {
-            glColorMaski(i, GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
+            glColorMaskiOES(i, GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
         }
 
         if (i % 4 == 1)
         {
-            glColorMaski(i, GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
+            glColorMaskiOES(i, GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
         }
 
         if (i % 4 == 2)
         {
-            glColorMaski(i, GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
+            glColorMaskiOES(i, GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
         }
 
         if (i % 4 == 3)
         {
-            glColorMaski(i, GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+            glColorMaskiOES(i, GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
         }
     }
 
@@ -5026,7 +5028,7 @@ TEST_P(FramebufferTest_ES31, ClearWithColorMasksRGB5A1)
     // Set the framebuffer color mask back to default values
     for (int i = 0; i < maxDrawBuffers; ++i)
     {
-        glColorMaski(i, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glColorMaskiOES(i, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     }
 
     ASSERT_GL_NO_ERROR();

@@ -8201,6 +8201,57 @@ TEST_P(VulkanPerformanceCounterTest, FBOChangeAndClearAndBackDoesNotBreakRenderP
     EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
 }
 
+// Test that just switching programs without breaking the renderpass
+// doesn't cause updates to GraphicsDriverUniforms
+TEST_P(VulkanPerformanceCounterTest, NoUpdatesToGraphicsDriverUniformsOnProgramChange)
+{
+    // Create 2 programs and switch between them
+    ANGLE_GL_PROGRAM(program1, essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+    ANGLE_GL_PROGRAM(program2, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    setupForColorOpsTest(&framebuffer, &texture);
+
+    glUseProgram(program1);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    drawQuad(program1, essl1_shaders::PositionAttrib(), 0);
+    uint64_t program1Count = getPerfCounters().graphicsDriverUniformsUpdated;
+
+    glUseProgram(program2);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    drawQuad(program2, essl1_shaders::PositionAttrib(), 0);
+    uint64_t program2Count = getPerfCounters().graphicsDriverUniformsUpdated;
+
+    // Verify vkCmdUpdatePushConstants perf counter
+    EXPECT_EQ(program1Count, program2Count);
+
+    glUseProgram(program1);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    drawQuad(program1, essl1_shaders::PositionAttrib(), 0);
+    program1Count = getPerfCounters().graphicsDriverUniformsUpdated;
+
+    // Verify vkCmdUpdatePushConstants perf counter
+    EXPECT_EQ(program1Count, program2Count);
+
+    // Verify pixel color
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+
+    // Now that we have broken the render pass expect a call to vkCmdUpdatePushConstants
+    // even if using the same program
+    glUseProgram(program1);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    drawQuad(program1, essl1_shaders::PositionAttrib(), 0);
+    program1Count = getPerfCounters().graphicsDriverUniformsUpdated;
+
+    // Verify vkCmdUpdatePushConstants perf counter
+    EXPECT_EQ(program1Count, program2Count + 1);
+}
+
 // This is test for optimization in vulkan backend. efootball_pes_2021 usage shows this usage
 // pattern and we expect implementation to reuse the storage for performance.
 TEST_P(VulkanPerformanceCounterTest,
@@ -8316,6 +8367,48 @@ TEST_P(VulkanPerformanceCounterTest_Prerotation, swapchainCreateCounterTest)
     EXPECT_EQ(getPerfCounters().swapchainCreate, expectedSwapchainCreateCounter);
 }
 
+// Test that fully overwriting a sampled texture does not close the render pass due to texture
+// ghosting.
+TEST_P(VulkanPerformanceCounterTest, TextureOverwriteDoesNotBreakRenderPass)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Texture2D(), essl1_shaders::fs::Texture2D());
+    glUseProgram(program);
+    GLint textureLoc = glGetUniformLocation(program, essl1_shaders::Texture2DUniform());
+    ASSERT_NE(-1, textureLoc);
+
+    constexpr uint32_t kWidth  = 16;
+    constexpr uint32_t kHeight = 24;
+
+    const std::vector<GLColor> texDataRed(kWidth * kHeight, GLColor::red);
+    const std::vector<GLColor> texDataGreen(kWidth * kHeight, GLColor::green);
+
+    GLTexture texture;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kWidth, kHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 texDataRed.data());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+
+    uint64_t expectedRenderPassCount = getPerfCounters().renderPasses + 1;
+
+    // Draw multiple times, completely overwriting the texture each time.
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, kWidth, kHeight, GL_RGBA, GL_UNSIGNED_BYTE,
+                        i % 2 == 0 ? texDataGreen.data() : texDataRed.data());
+        drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    }
+
+    // There should be only one render pass.
+    uint64_t actualRenderPassCount = getPerfCounters().renderPasses;
+    EXPECT_EQ(expectedRenderPassCount, actualRenderPassCount);
+
+    // For completeness, verify rendering results.
+    EXPECT_PIXEL_RECT_EQ(0, 0, getWindowWidth(), getWindowHeight(), GLColor::red);
+}
+
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(VulkanPerformanceCounterTest);
 ANGLE_INSTANTIATE_TEST(
     VulkanPerformanceCounterTest,
@@ -8341,12 +8434,11 @@ ANGLE_INSTANTIATE_TEST(VulkanPerformanceCounterTest_MSAA,
                        ES3_VULKAN().enable(Feature::EmulatedPrerotation270));
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(VulkanPerformanceCounterTest_Prerotation);
-ANGLE_INSTANTIATE_TEST(
-    VulkanPerformanceCounterTest_Prerotation,
-    ES3_VULKAN().enable(Feature::PerFrameWindowSizeQuery),
-    ES3_VULKAN().enable(Feature::EmulatedPrerotation90).enable(Feature::PerFrameWindowSizeQuery),
-    ES3_VULKAN().enable(Feature::EmulatedPrerotation180).enable(Feature::PerFrameWindowSizeQuery),
-    ES3_VULKAN().enable(Feature::EmulatedPrerotation270).enable(Feature::PerFrameWindowSizeQuery));
+ANGLE_INSTANTIATE_TEST(VulkanPerformanceCounterTest_Prerotation,
+                       ES3_VULKAN(),
+                       ES3_VULKAN().enable(Feature::EmulatedPrerotation90),
+                       ES3_VULKAN().enable(Feature::EmulatedPrerotation180),
+                       ES3_VULKAN().enable(Feature::EmulatedPrerotation270));
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(VulkanPerformanceCounterTest_SingleBuffer);
 ANGLE_INSTANTIATE_TEST(VulkanPerformanceCounterTest_SingleBuffer, ES3_VULKAN());

@@ -26,6 +26,12 @@ struct FeaturesVk : FeatureSetBase
         &members,
     };
 
+    FeatureInfo allowPipelineStatisticsForPrimitivesGeneratedQuery = {
+        "allowPipelineStatisticsForPrimitivesGeneratedQuery",
+        FeatureCategory::VulkanWorkarounds,
+        &members,
+    };
+
     FeatureInfo bresenhamLineRasterization = {
         "bresenhamLineRasterization",
         FeatureCategory::VulkanFeatures,
@@ -164,6 +170,12 @@ struct FeaturesVk : FeatureSetBase
         &members,
     };
 
+    FeatureInfo preferGlobalPipelineCache = {
+        "preferGlobalPipelineCache",
+        FeatureCategory::VulkanFeatures,
+        &members,
+    };
+
     FeatureInfo supportsYUVSamplerConversion = {
         "supportsYUVSamplerConversion",
         FeatureCategory::VulkanFeatures,
@@ -254,8 +266,8 @@ struct FeaturesVk : FeatureSetBase
         &members,
     };
 
-    FeatureInfo perFrameWindowSizeQuery = {
-        "perFrameWindowSizeQuery",
+    FeatureInfo avoidInvisibleWindowSwapchainRecreate = {
+        "avoidInvisibleWindowSwapchainRecreate",
         FeatureCategory::VulkanWorkarounds,
         &members,
     };
@@ -304,12 +316,6 @@ struct FeaturesVk : FeatureSetBase
 
     FeatureInfo persistentlyMappedBuffers = {
         "persistentlyMappedBuffers",
-        FeatureCategory::VulkanFeatures,
-        &members,
-    };
-
-    FeatureInfo enablePreRotateSurfaces = {
-        "enablePreRotateSurfaces",
         FeatureCategory::VulkanFeatures,
         &members,
     };
@@ -502,12 +508,6 @@ struct FeaturesVk : FeatureSetBase
 
     FeatureInfo emulatedPrerotation270 = {
         "emulatedPrerotation270",
-        FeatureCategory::VulkanFeatures,
-        &members,
-    };
-
-    FeatureInfo preferDriverUniformOverSpecConst = {
-        "preferDriverUniformOverSpecConst",
         FeatureCategory::VulkanFeatures,
         &members,
     };
@@ -974,6 +974,12 @@ struct FeaturesVk : FeatureSetBase
         &members,
     };
 
+    FeatureInfo enableExtraSubmitFence = {
+        "enableExtraSubmitFence",
+        FeatureCategory::VulkanWorkarounds,
+        &members,
+    };
+
     FeatureInfo supportsPipelineProtectedAccess = {
         "supportsPipelineProtectedAccess",
         FeatureCategory::VulkanFeatures,
@@ -1028,8 +1034,14 @@ struct FeaturesVk : FeatureSetBase
         &members,
     };
 
-    FeatureInfo asyncCommandBufferResetAndGarbageCleanup = {
-        "asyncCommandBufferResetAndGarbageCleanup",
+    FeatureInfo asyncGarbageCleanup = {
+        "asyncGarbageCleanup",
+        FeatureCategory::VulkanFeatures,
+        &members,
+    };
+
+    FeatureInfo asyncCommandBufferReset = {
+        "asyncCommandBufferReset",
         FeatureCategory::VulkanFeatures,
         &members,
     };
@@ -1102,6 +1114,12 @@ struct FeaturesVk : FeatureSetBase
 
     FeatureInfo allowHostImageCopyDespiteNonIdenticalLayout = {
         "allowHostImageCopyDespiteNonIdenticalLayout",
+        FeatureCategory::VulkanFeatures,
+        &members,
+    };
+
+    FeatureInfo forceHostImageCopyForLuma = {
+        "forceHostImageCopyForLuma",
         FeatureCategory::VulkanFeatures,
         &members,
     };
@@ -1234,6 +1252,12 @@ struct FeaturesVk : FeatureSetBase
 
     FeatureInfo useVkEventForBufferBarrier = {
         "useVkEventForBufferBarrier",
+        FeatureCategory::VulkanFeatures,
+        &members,
+    };
+
+    FeatureInfo recycleVkEvent = {
+        "recycleVkEvent",
         FeatureCategory::VulkanFeatures,
         &members,
     };
@@ -1408,6 +1432,24 @@ struct FeaturesVk : FeatureSetBase
 
     FeatureInfo supportsTextureCompressionAstcHdr = {
         "supportsTextureCompressionAstcHdr",
+        FeatureCategory::VulkanFeatures,
+        &members,
+    };
+
+    FeatureInfo supportsAstcDecodeMode = {
+        "supportsAstcDecodeMode",
+        FeatureCategory::VulkanFeatures,
+        &members,
+    };
+
+    FeatureInfo supportsAstcDecodeModeRgb9e5 = {
+        "supportsAstcDecodeModeRgb9e5",
+        FeatureCategory::VulkanFeatures,
+        &members,
+    };
+
+    FeatureInfo supportsAstcHdr3dTextures = {
+        "supportsAstcHdr3dTextures",
         FeatureCategory::VulkanFeatures,
         &members,
     };

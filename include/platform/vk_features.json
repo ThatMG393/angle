@@ -16,6 +16,14 @@
             "issue": "b/266235549"
         },
         {
+            "name": "allow_pipeline_statistics_for_primitives_generated_query",
+            "category": "Workarounds",
+            "description": [
+                "On devices where primitivesGeneratedQuery vulkan feature is not available, allows pipelineStatisticsQuery vulkan feature to substitute primitivesGeneratedQuery if it generates the same results as primitivesGeneratedQuery"
+            ],
+            "issue:": "b/333987915"
+        },
+        {
             "name": "bresenham_line_rasterization",
             "category": "Features",
             "description": [
@@ -185,6 +193,14 @@
             ]
         },
         {
+            "name": "prefer_global_pipeline_cache",
+            "category": "Features",
+            "description": [
+                "The renderer's pipeline cache will be used instead of the separate caches per program."
+            ],
+            "issue": "http://anglebug.com/411442610"
+        },
+        {
             "name": "supports_YUV_sampler_conversion",
             "category": "Features",
             "description": [
@@ -306,12 +322,14 @@
             "issue": "http://anglebug.com/42262161"
         },
         {
-            "name": "per_frame_window_size_query",
+            "name": "avoid_invisible_window_swapchain_recreate",
             "category": "Workarounds",
             "description": [
-                "Vulkan swapchain is not returning VK_ERROR_OUT_OF_DATE when window resizing"
+                "Do not recreate a swapchain when window is invisible even if its size is ",
+                "changed. This is a workaround for the bug when vkAcquireNextImageKHR constantly ",
+                "returns VK_ERROR_OUT_OF_DATE if recreate the swapchain while window is invisible."
             ],
-            "issue": "http://anglebug.com/40096601, http://anglebug.com/42262286, http://anglebug.com/42262287"
+            "issue": "http://anglebug.com/397848903"
         },
         {
             "name": "pad_buffers_to_max_vertex_attrib_stride",
@@ -379,14 +397,6 @@
                 "Persistently map buffer memory to reduce map/unmap IOCTL overhead."
             ],
             "issue": "http://anglebug.com/40096464"
-        },
-        {
-            "name": "enable_pre_rotate_surfaces",
-            "category": "Features",
-            "description": [
-                "Enable Android pre-rotation for landscape applications"
-            ],
-            "issue": "http://anglebug.com/42262166"
         },
         {
             "name": "enable_precision_qualifiers",
@@ -648,14 +658,6 @@
                 "Emulate 270-degree prerotation."
             ],
             "issue": "http://anglebug.com/42263477"
-        },
-        {
-            "name": "prefer_driver_uniform_over_spec_const",
-            "category": "Features",
-            "description": [
-                "Prefer using driver uniforms instead of specialization constants."
-            ],
-            "issue": "http://anglebug.com/42265878"
         },
         {
             "name": "expose_non_conformant_extensions_and_versions",
@@ -1271,6 +1273,14 @@
             "issue": "http://anglebug.com/42263322"
         },
         {
+            "name": "enable_extra_submit_fence",
+            "category": "Workarounds",
+            "description": [
+                "Enable using a separate submit fence in the command batches."
+            ],
+            "issue": "https://issuetracker.google.com/384477641"
+        },
+        {
             "name": "supports_pipeline_protected_access",
             "category": "Features",
             "description": [
@@ -1342,12 +1352,20 @@
             "issue": "https://issuetracker.google.com/253522366"
         },
         {
-            "name": "async_command_buffer_reset_and_garbage_cleanup",
+            "name": "async_garbage_cleanup",
             "category": "Features",
             "description": [
-                "Reset command buffer and cleanup garbage in async thread."
+                "cleanup garbage in async thread."
             ],
             "issue": "https://issuetracker.google.com/255411748"
+        },
+        {
+            "name": "async_command_buffer_reset",
+            "category": "Features",
+            "description": [
+                "Reset command buffer in async thread."
+            ],
+            "issue": "https://issuetracker.google.com/378718508"
         },
         {
             "name": "use_reset_command_buffer_bit_for_secondary_pools",
@@ -1440,6 +1458,14 @@
             "description": [
                 "When using VK_EXT_host_image_copy, allow VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT even if",
                 "perf query indicates only optimalDeviceAccess, but not identicalMemoryLayout"
+            ]
+        },
+        {
+            "name": "force_host_image_copy_for_luma",
+            "category": "Features",
+            "description": [
+                "When using VK_EXT_host_image_copy, use VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT for images created",
+                "for luminance/alpha textures"
             ]
         },
         {
@@ -1620,6 +1646,14 @@
                 "Uses VkEvent instead of VkCmdPipelineBarrier for buffer barriers"
             ],
             "issue": "https://issues.angleproject.org/360274928"
+        },
+        {
+            "name": "recycle_vkEvent",
+            "category": "Features",
+            "description": [
+                "Keep and recycle VkEvent instead of destroying when the last reference goes away"
+            ],
+            "issue": "https://issues.angleproject.org/409441956"
         },
         {
             "name": "supports_synchronization2",
@@ -1854,6 +1888,30 @@
                 "VkDevice supports VK_EXT_texture_compression_astc_hdr extension"
             ],
             "issue": "https://anglebug.com/379186304"
+        },
+        {
+            "name": "supports_astc_decode_mode",
+            "category": "Features",
+            "description": [
+                "VkDevice supports VK_EXT_astc_decode_mode extension"
+            ],
+            "issue": "https://anglebug.com/419403188"
+        },
+        {
+            "name": "supports_astc_decode_mode_rgb9e5",
+            "category": "Features",
+            "description": [
+                "VkDevice supports VK_EXT_astc_decode_mode extension"
+            ],
+            "issue": "https://anglebug.com/419403188"
+        },
+        {
+            "name": "supports_astc_hdr_3d_textures",
+            "category": "Features",
+            "description": [
+                "Whether the device supports 3D textures with ASTC HDR compression"
+            ],
+            "issue": "https://anglebug.com/416095435"
         },
         {
             "name": "supports_image_compression_control_swapchain",

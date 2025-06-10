@@ -411,10 +411,8 @@ static_assert(kRenderPassDescSize == 16, "Size check failed");
 
 enum class GraphicsPipelineSubset
 {
-    Complete,  // Including all subsets
-    VertexInput,
-    Shaders,
-    FragmentOutput,
+    Complete,  // Include all subsets
+    Shaders,   // Include only the shader subsets, excluding vertex input and fragment output state.
 };
 
 enum class CacheLookUpFeedback
@@ -600,13 +598,12 @@ struct PackedPreRasterizationAndFragmentStates final
         // Dynamic in VK_EXT_extended_dynamic_state2
         uint32_t depthCompareOp : 4;
 
-        // Affecting specialization constants
-        uint32_t surfaceRotation : 1;
-
         // Whether the pipeline is robust (shader stages copy)
         uint32_t isRobustContext : 1;
         // Whether the pipeline needs access to protected content (shader stages copy)
         uint32_t isProtectedContext : 1;
+
+        uint32_t padding : 1;
     } bits;
 
     // Affecting specialization constants
@@ -869,6 +866,35 @@ class ComputePipelineDesc final
     char mPadding[7]                        = {};
 };
 
+class PipelineHelper;
+
+// When a graphics pipeline is created, the shaders state is either directly specified (monolithic
+// pipeline) or is specified in a pipeline library.  This struct encapsulates the choices.
+struct GraphicsPipelineShadersInfo final
+{
+  public:
+    GraphicsPipelineShadersInfo(const ShaderModuleMap *shaders,
+                                const SpecializationConstants *specConsts)
+        : mShaders(shaders), mSpecConsts(specConsts)
+    {}
+    GraphicsPipelineShadersInfo(vk::PipelineHelper *pipelineLibrary)
+        : mPipelineLibrary(pipelineLibrary)
+    {}
+
+    vk::PipelineHelper *pipelineLibrary() const { return mPipelineLibrary; }
+    bool usePipelineLibrary() const { return mPipelineLibrary != nullptr; }
+
+  private:
+    // If the shaders state should be directly specified in the final pipeline.
+    const ShaderModuleMap *mShaders            = nullptr;
+    const SpecializationConstants *mSpecConsts = nullptr;
+
+    // If the shaders state is provided via a pipeline library.
+    vk::PipelineHelper *mPipelineLibrary = nullptr;
+
+    friend class GraphicsPipelineDesc;
+};
+
 // State changes are applied through the update methods. Each update method can also have a
 // sibling method that applies the update without marking a state transition. The non-transition
 // update methods are used for internal shader pipelines. Not every non-transition update method
@@ -905,8 +931,7 @@ class GraphicsPipelineDesc final
                                 GraphicsPipelineSubset subset,
                                 const RenderPass &compatibleRenderPass,
                                 const PipelineLayout &pipelineLayout,
-                                const ShaderModuleMap &shaders,
-                                const SpecializationConstants &specConsts,
+                                const GraphicsPipelineShadersInfo &shaders,
                                 Pipeline *pipelineOut,
                                 CacheLookUpFeedback *feedbackOut) const;
 
@@ -1061,10 +1086,6 @@ class GraphicsPipelineDesc final
     void nextSubpass(GraphicsPipelineTransitionBits *transition);
     void setSubpass(uint32_t subpass);
     uint32_t getSubpass() const;
-
-    void updateSurfaceRotation(GraphicsPipelineTransitionBits *transition,
-                               bool isRotatedAspectRatio);
-    bool getSurfaceRotation() const { return mShaders.shaders.bits.surfaceRotation; }
 
     void updateEmulatedDitherControl(GraphicsPipelineTransitionBits *transition, uint16_t value);
     uint32_t getEmulatedDitherControl() const { return mShaders.shaders.emulatedDitherControl; }
@@ -1414,8 +1435,6 @@ static_assert(sizeof(SamplerDesc) == 56, "Unexpected SamplerDesc size");
 // Disable warnings about struct padding.
 ANGLE_DISABLE_STRUCT_PADDING_WARNINGS
 
-class PipelineHelper;
-
 struct GraphicsPipelineTransition
 {
     GraphicsPipelineTransition();
@@ -1654,8 +1673,7 @@ class PipelineHelper final : public Resource
 
     // The list of pipeline helpers that were referenced when creating a linked pipeline.  These
     // pipelines must be kept alive, so their serial is updated at the same time as this object.
-    // Not necessary for vertex input and fragment output as they stay alive until context's
-    // destruction.
+    // The shaders pipeline is the only library so far.
     PipelineHelper *mLinkedShaders = nullptr;
 
     // If pipeline libraries are used and monolithic pipelines are created in parallel, this is the
@@ -2630,25 +2648,11 @@ struct GraphicsPipelineDescCompleteHash
         return key.hash(vk::GraphicsPipelineSubset::Complete);
     }
 };
-struct GraphicsPipelineDescVertexInputHash
-{
-    size_t operator()(const rx::vk::GraphicsPipelineDesc &key) const
-    {
-        return key.hash(vk::GraphicsPipelineSubset::VertexInput);
-    }
-};
 struct GraphicsPipelineDescShadersHash
 {
     size_t operator()(const rx::vk::GraphicsPipelineDesc &key) const
     {
         return key.hash(vk::GraphicsPipelineSubset::Shaders);
-    }
-};
-struct GraphicsPipelineDescFragmentOutputHash
-{
-    size_t operator()(const rx::vk::GraphicsPipelineDesc &key) const
-    {
-        return key.hash(vk::GraphicsPipelineSubset::FragmentOutput);
     }
 };
 
@@ -2668,28 +2672,12 @@ struct GraphicsPipelineDescCompleteKeyEqual
         return first.keyEqual(second, vk::GraphicsPipelineSubset::Complete);
     }
 };
-struct GraphicsPipelineDescVertexInputKeyEqual
-{
-    size_t operator()(const rx::vk::GraphicsPipelineDesc &first,
-                      const rx::vk::GraphicsPipelineDesc &second) const
-    {
-        return first.keyEqual(second, vk::GraphicsPipelineSubset::VertexInput);
-    }
-};
 struct GraphicsPipelineDescShadersKeyEqual
 {
     size_t operator()(const rx::vk::GraphicsPipelineDesc &first,
                       const rx::vk::GraphicsPipelineDesc &second) const
     {
         return first.keyEqual(second, vk::GraphicsPipelineSubset::Shaders);
-    }
-};
-struct GraphicsPipelineDescFragmentOutputKeyEqual
-{
-    size_t operator()(const rx::vk::GraphicsPipelineDesc &first,
-                      const rx::vk::GraphicsPipelineDesc &second) const
-    {
-        return first.keyEqual(second, vk::GraphicsPipelineSubset::FragmentOutput);
     }
 };
 
@@ -2702,23 +2690,10 @@ struct GraphicsPipelineCacheTypeHelper
 };
 
 template <>
-struct GraphicsPipelineCacheTypeHelper<GraphicsPipelineDescVertexInputHash>
-{
-    using KeyEqual                                      = GraphicsPipelineDescVertexInputKeyEqual;
-    static constexpr vk::GraphicsPipelineSubset kSubset = vk::GraphicsPipelineSubset::VertexInput;
-};
-template <>
 struct GraphicsPipelineCacheTypeHelper<GraphicsPipelineDescShadersHash>
 {
     using KeyEqual                                      = GraphicsPipelineDescShadersKeyEqual;
     static constexpr vk::GraphicsPipelineSubset kSubset = vk::GraphicsPipelineSubset::Shaders;
-};
-template <>
-struct GraphicsPipelineCacheTypeHelper<GraphicsPipelineDescFragmentOutputHash>
-{
-    using KeyEqual = GraphicsPipelineDescFragmentOutputKeyEqual;
-    static constexpr vk::GraphicsPipelineSubset kSubset =
-        vk::GraphicsPipelineSubset::FragmentOutput;
 };
 
 // Compute Pipeline Cache implementation
@@ -2800,22 +2775,11 @@ class GraphicsPipelineCache final : public HasCacheStats<VulkanCacheType::Graphi
                                  vk::PipelineCacheAccess *pipelineCache,
                                  const vk::RenderPass &compatibleRenderPass,
                                  const vk::PipelineLayout &pipelineLayout,
-                                 const vk::ShaderModuleMap &shaders,
-                                 const vk::SpecializationConstants &specConsts,
+                                 const vk::GraphicsPipelineShadersInfo &shaders,
                                  PipelineSource source,
                                  const vk::GraphicsPipelineDesc &desc,
                                  const vk::GraphicsPipelineDesc **descPtrOut,
                                  vk::PipelineHelper **pipelineOut);
-
-    angle::Result linkLibraries(vk::ErrorContext *context,
-                                vk::PipelineCacheAccess *pipelineCache,
-                                const vk::GraphicsPipelineDesc &desc,
-                                const vk::PipelineLayout &pipelineLayout,
-                                vk::PipelineHelper *vertexInputPipeline,
-                                vk::PipelineHelper *shadersPipeline,
-                                vk::PipelineHelper *fragmentOutputPipeline,
-                                const vk::GraphicsPipelineDesc **descPtrOut,
-                                vk::PipelineHelper **pipelineOut);
 
     // Helper for VulkanPipelineCachePerf that resets the object without destroying any object.
     void reset() { mPayload.clear(); }
@@ -2833,10 +2797,7 @@ class GraphicsPipelineCache final : public HasCacheStats<VulkanCacheType::Graphi
 };
 
 using CompleteGraphicsPipelineCache    = GraphicsPipelineCache<GraphicsPipelineDescCompleteHash>;
-using VertexInputGraphicsPipelineCache = GraphicsPipelineCache<GraphicsPipelineDescVertexInputHash>;
 using ShadersGraphicsPipelineCache     = GraphicsPipelineCache<GraphicsPipelineDescShadersHash>;
-using FragmentOutputGraphicsPipelineCache =
-    GraphicsPipelineCache<GraphicsPipelineDescFragmentOutputHash>;
 
 class DescriptorSetLayoutCache final : angle::NonCopyable
 {

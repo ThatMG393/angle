@@ -1455,7 +1455,6 @@ void GenerateCaps(const FunctionsGL *functions,
                                       functions->hasGLExtension("GL_ARB_pixel_buffer_object") ||
                                       functions->hasGLExtension("GL_EXT_pixel_buffer_object") ||
                                       functions->hasGLESExtension("GL_NV_pixel_buffer_object");
-    extensions->syncARB      = nativegl::SupportsFenceSync(functions);
     extensions->mapbufferOES = functions->isAtLeastGL(gl::Version(1, 5)) ||
                                functions->isAtLeastGLES(gl::Version(3, 0)) ||
                                functions->hasGLESExtension("GL_OES_mapbuffer");
@@ -1698,7 +1697,7 @@ void GenerateCaps(const FunctionsGL *functions,
                                         functions->hasGLExtension("GL_ARB_stencil_texturing") ||
                                         functions->isAtLeastGLES(gl::Version(3, 1));
 
-    if (features.supportsShaderFramebufferFetchEXT.enabled)
+    if (features.supportsShaderFramebufferFetchEXT.enabled && extensions->drawBuffersIndexedAny())
     {
         // We can support PLS natively, probably in tiled memory.
         extensions->shaderPixelLocalStorageANGLE         = true;
@@ -1789,7 +1788,6 @@ void GenerateCaps(const FunctionsGL *functions,
     }
 
     extensions->copyTextureCHROMIUM = true;
-    extensions->syncQueryCHROMIUM   = SyncQueryGL::IsSupported(functions);
 
     // Note that OES_texture_storage_multisample_2d_array support could be extended down to GL 3.2
     // if we emulated texStorage* API on top of texImage*.
@@ -1798,8 +1796,8 @@ void GenerateCaps(const FunctionsGL *functions,
         functions->hasGLExtension("GL_ARB_texture_storage_multisample") ||
         functions->hasGLESExtension("GL_OES_texture_storage_multisample_2d_array");
 
-    extensions->multiviewMultisampleANGLE = extensions->textureStorageMultisample2dArrayOES &&
-                                            (extensions->multiviewOVR || extensions->multiview2OVR);
+    extensions->multiviewMultisampleANGLE =
+        extensions->textureStorageMultisample2dArrayOES && extensions->multiviewOVR;
 
     extensions->textureMultisampleANGLE = functions->isAtLeastGL(gl::Version(3, 2)) ||
                                           functions->hasGLExtension("GL_ARB_texture_multisample") ||
@@ -1962,12 +1960,11 @@ void GenerateCaps(const FunctionsGL *functions,
          functions->hasGLESExtension("GL_EXT_draw_elements_base_vertex"));
 
     // EXT_base_instance
-    extensions->baseInstanceEXT =
-        !features.disableBaseInstanceVertex.enabled &&
-        (functions->isAtLeastGL(gl::Version(3, 2)) || functions->isAtLeastGLES(gl::Version(3, 2)) ||
-         functions->hasGLESExtension("GL_OES_draw_elements_base_vertex") ||
-         functions->hasGLESExtension("GL_EXT_draw_elements_base_vertex") ||
-         functions->hasGLESExtension("GL_EXT_base_instance"));
+    // Unlike the ANGLE variant, this extension is exposed only if supported natively.
+    extensions->baseInstanceEXT = !features.disableBaseInstanceVertex.enabled &&
+                                  (functions->isAtLeastGL(gl::Version(4, 2)) ||
+                                   functions->hasGLExtension("GL_ARB_base_instance") ||
+                                   functions->hasGLESExtension("GL_EXT_base_instance"));
 
     // ANGLE_base_vertex_base_instance_shader_builtin
     extensions->baseVertexBaseInstanceShaderBuiltinANGLE = extensions->baseVertexBaseInstanceANGLE;
@@ -2718,6 +2715,11 @@ void InitializeFeatures(const FunctionsGL *functions, angle::FeaturesGL *feature
     ANGLE_FEATURE_CONDITION(
         features, disableBlendEquationAdvanced,
         (isIntel && IsWindows()) || IsAdreno4xx(functions) || IsAdreno5xx(functions) || isMali);
+
+    // Adreno drivers cache some internal values based on glSampleCoverage and
+    // number of samples in currently bound FBO and require to reset sample
+    // coverage each time FBO changes.
+    ANGLE_FEATURE_CONDITION(features, resetSampleCoverageOnFBOChange, isQualcomm);
 }
 
 void InitializeFrontendFeatures(const FunctionsGL *functions, angle::FrontendFeatures *features)
@@ -2797,12 +2799,6 @@ bool SupportsCompute(const FunctionsGL *functions)
             (functions->isAtLeastGL(gl::Version(4, 2)) &&
              functions->hasGLExtension("GL_ARB_compute_shader") &&
              functions->hasGLExtension("GL_ARB_shader_storage_buffer_object")));
-}
-
-bool SupportsFenceSync(const FunctionsGL *functions)
-{
-    return functions->isAtLeastGL(gl::Version(3, 2)) || functions->hasGLExtension("GL_ARB_sync") ||
-           functions->isAtLeastGLES(gl::Version(3, 0));
 }
 
 bool SupportsOcclusionQueries(const FunctionsGL *functions)

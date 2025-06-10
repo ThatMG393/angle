@@ -174,10 +174,6 @@ struct Limitations
     // GL_ANGLE_base_vertex_base_instance is emulated and should only be exposed to WebGL. Emulated
     // by default in shared renderer code.
     bool baseInstanceBaseVertexEmulated = true;
-
-    // EXT_base_instance is emulated and should only be exposed to WebGL. Emulated by default in
-    // shared renderer code.
-    bool baseInstanceEmulated = true;
 };
 
 struct TypePrecision
@@ -391,7 +387,6 @@ struct Caps
 
     // GL_ANGLE_shader_pixel_local_storage
     GLuint maxPixelLocalStoragePlanes                       = 0;
-    GLuint maxColorAttachmentsWithActivePixelLocalStorage   = 0;
     GLuint maxCombinedDrawBuffersAndPixelLocalStoragePlanes = 0;
 
     // GL_EXT_shader_pixel_local_storage.
@@ -713,6 +708,9 @@ struct DisplayExtensions
 
     // EGL_EXT_surface_compression
     bool surfaceCompressionEXT = false;
+
+    // EGL_ANGLE_webgpu_texture_client_buffer
+    bool webgpuTextureClientBuffer = false;
 };
 
 struct DeviceExtensions
@@ -745,6 +743,9 @@ struct DeviceExtensions
 
     // EGL_EXT_device_drm_render_node
     bool deviceDrmRenderNodeEXT = false;
+
+    // EGL_ANGLE_device_webgpu
+    bool deviceWebGPU = false;
 };
 
 struct ClientExtensions

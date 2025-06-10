@@ -59,7 +59,7 @@ class OffscreenSurfaceVk : public SurfaceVk
     egl::Error unMakeCurrent(const gl::Context *context) override;
     const vk::ImageHelper *getColorImage() const { return &mColorAttachment.image; }
 
-    egl::Error swap(const gl::Context *context) override;
+    egl::Error swap(const gl::Context *context, SurfaceSwapFeedback *feedback) override;
     egl::Error postSubBuffer(const gl::Context *context,
                              EGLint x,
                              EGLint y,
@@ -259,6 +259,13 @@ struct ImageAcquireOperation : angle::NonCopyable
     UnlockedAcquireData unlockedAcquireData;
     UnlockedAcquireResult unlockedAcquireResult;
 };
+
+enum class SurfaceSizeState
+{
+    InvalidSwapchain,
+    Unresolved,
+    Resolved,
+};
 }  // namespace impl
 
 class WindowSurfaceVk : public SurfaceVk
@@ -279,10 +286,11 @@ class WindowSurfaceVk : public SurfaceVk
                                             GLsizei samples,
                                             FramebufferAttachmentRenderTarget **rtOut) override;
     egl::Error prepareSwap(const gl::Context *context) override;
-    egl::Error swap(const gl::Context *context) override;
+    egl::Error swap(const gl::Context *context, SurfaceSwapFeedback *feedback) override;
     egl::Error swapWithDamage(const gl::Context *context,
                               const EGLint *rects,
-                              EGLint n_rects) override;
+                              EGLint n_rects,
+                              SurfaceSwapFeedback *feedback) override;
     egl::Error postSubBuffer(const gl::Context *context,
                              EGLint x,
                              EGLint y,
@@ -297,17 +305,9 @@ class WindowSurfaceVk : public SurfaceVk
     egl::Error getMscRate(EGLint *numerator, EGLint *denominator) override;
     void setSwapInterval(const egl::Display *display, EGLint interval) override;
 
-    // Note: windows cannot be resized on Android.  The approach requires
-    // calling vkGetPhysicalDeviceSurfaceCapabilitiesKHR.  However, that is
-    // expensive; and there are troublesome timing issues for other parts of
-    // ANGLE (which cause test failures and crashes).  Therefore, a
-    // special-Android-only path is created just for the querying of EGL_WIDTH
-    // and EGL_HEIGHT.
-    // https://issuetracker.google.com/issues/153329980
-    egl::Error getUserWidth(const egl::Display *display, EGLint *value) const override;
-    egl::Error getUserHeight(const egl::Display *display, EGLint *value) const override;
-    angle::Result getUserExtentsImpl(DisplayVk *displayVk,
-                                     VkSurfaceCapabilitiesKHR *surfaceCaps) const;
+    // Sizes that Surface will have after render target is first accessed (e.g. after draw).
+    egl::Error getUserWidth(const egl::Display *display, EGLint *value) const final;
+    egl::Error getUserHeight(const egl::Display *display, EGLint *value) const final;
 
     EGLint isPostSubBufferSupported() const override;
     EGLint getSwapBehavior() const override;
@@ -337,6 +337,7 @@ class WindowSurfaceVk : public SurfaceVk
     egl::Error getBufferAge(const gl::Context *context, EGLint *age) override;
 
     egl::Error setRenderBuffer(EGLint renderBuffer) override;
+    bool supportsSingleRenderBuffer() const override;
 
     bool isSharedPresentMode() const { return IsSharedPresentMode(mSwapchainPresentMode); }
 
@@ -370,7 +371,8 @@ class WindowSurfaceVk : public SurfaceVk
     angle::Result swapImpl(ContextVk *contextVk,
                            const EGLint *rects,
                            EGLint n_rects,
-                           const void *pNextChain);
+                           const void *pNextChain,
+                           SurfaceSwapFeedback *feedback);
 
     EGLNativeWindowType mNativeWindowType;
     VkSurfaceKHR mSurface;
@@ -393,13 +395,19 @@ class WindowSurfaceVk : public SurfaceVk
     virtual angle::Result createSurfaceVk(vk::ErrorContext *context)          = 0;
     virtual angle::Result getCurrentWindowSize(vk::ErrorContext *context,
                                                gl::Extents *extentsOut) const = 0;
+    virtual angle::Result getWindowVisibility(vk::ErrorContext *context, bool *isVisibleOut) const;
+
+    impl::SurfaceSizeState getSizeState() const;
+    void setSizeState(impl::SurfaceSizeState sizeState);
+    angle::Result getUserExtentsImpl(vk::ErrorContext *context, VkExtent2D *extentOut) const;
 
     vk::PresentMode getDesiredSwapchainPresentMode() const;
     void setDesiredSwapchainPresentMode(vk::PresentMode presentMode);
     void setDesiredSwapInterval(EGLint interval);
 
     angle::Result initializeImpl(DisplayVk *displayVk, bool *anyMatchesOut);
-    void invalidateSwapchain(vk::ErrorContext *context);
+    // Invalidates the swapchain pointer, releases images, and defers acquire next swapchain image.
+    void invalidateSwapchain(vk::Renderer *renderer);
     angle::Result recreateSwapchain(vk::ErrorContext *context);
     angle::Result createSwapChain(vk::ErrorContext *context);
     angle::Result collectOldSwapchain(vk::ErrorContext *context, VkSwapchainKHR swapchain);
@@ -409,42 +417,35 @@ class WindowSurfaceVk : public SurfaceVk
         VkSurfaceCapabilitiesKHR *surfaceCapsOut,
         CompatiblePresentModes *compatiblePresentModesOut) const;
     void adjustSurfaceExtent(VkExtent2D *extent) const;
-    angle::Result checkForOutOfDateSwapchain(vk::ErrorContext *context, bool forceRecreate);
-    angle::Result resizeSwapchainImages(vk::ErrorContext *context, uint32_t imageCount);
+    // This method will invalidate the swapchain (if needed due to present returning OUT_OF_DATE, or
+    // swap interval changing).  Updates the current swapchain present mode.
+    angle::Result prepareSwapchainForAcquireNextImage(vk::ErrorContext *context);
+    void createSwapchainImages(uint32_t imageCount);
     void releaseSwapchainImages(vk::Renderer *renderer);
     void destroySwapChainImages(DisplayVk *displayVk);
-    angle::Result prepareForAcquireNextSwapchainImage(vk::ErrorContext *context);
-    // Called when a swapchain image whose acquisition was deferred must be acquired.  This method
-    // will recreate the swapchain (if needed due to present returning OUT_OF_DATE, swap interval
-    // changing, surface size changing etc, by calling prepareForAcquireNextSwapchainImage()) and
-    // call the doDeferredAcquireNextImageWithUsableSwapchain() method.
+    // Called when a swapchain image whose acquisition was deferred must be acquired or unlocked
+    // ANI result processed.  This method will recreate the swapchain (if needed due to surface size
+    // changing etc, by calling prepareSwapchainForAcquireNextImage()) and call the
+    // acquireNextSwapchainImage().  On some platforms, vkAcquireNextImageKHR() returns OUT_OF_DATE
+    // instead of present, which is also recreates the swapchain.  It is scheduled to be called
+    // later by deferAcquireNextImage().
     angle::Result doDeferredAcquireNextImage(vk::ErrorContext *context);
-    // Calls acquireNextSwapchainImage() and sets up the acquired image.  On some platforms,
-    // vkAcquireNextImageKHR returns OUT_OF_DATE instead of present, so this function may still
-    // recreate the swapchain.  The main difference with doDeferredAcquireNextImage is that it does
-    // not check for surface property changes for the purposes of swapchain recreation (because
-    // that's already done by prepareForAcquireNextSwapchainImage.
-    angle::Result doDeferredAcquireNextImageWithUsableSwapchain(vk::ErrorContext *context);
-    // This method calls vkAcquireNextImageKHR() to acquire the next swapchain image or to process
-    // unlocked ANI result.  It is scheduled to be called later by deferAcquireNextImage().
+    // This method calls vkAcquireNextImageKHR() to acquire the next swapchain image or processes
+    // unlocked ANI result, then sets up the acquired image.
     VkResult acquireNextSwapchainImage(vk::ErrorContext *context);
-    // Process the result of vkAcquireNextImageKHR.
-    VkResult postProcessUnlockedAcquire(vk::ErrorContext *context);
     // This method is called when a swapchain image is presented.  It schedules
-    // acquireNextSwapchainImage() to be called later.
+    // doDeferredAcquireNextImage() to be called later.
     void deferAcquireNextImage();
     bool skipAcquireNextSwapchainImageForSharedPresentMode() const;
 
-    angle::Result computePresentOutOfDate(vk::ErrorContext *context,
-                                          VkResult result,
-                                          bool *presentOutOfDate);
+    angle::Result checkSwapchainOutOfDate(vk::ErrorContext *context, VkResult presentResult);
     angle::Result prePresentSubmit(ContextVk *contextVk, const vk::Semaphore &presentSemaphore);
     angle::Result recordPresentLayoutBarrierIfNecessary(ContextVk *contextVk);
     angle::Result present(ContextVk *contextVk,
                           const EGLint *rects,
                           EGLint n_rects,
                           const void *pNextChain,
-                          bool *presentOutOfDate);
+                          SurfaceSwapFeedback *feedback);
 
     angle::Result cleanUpPresentHistory(vk::ErrorContext *context);
     angle::Result cleanUpOldSwapchains(vk::ErrorContext *context);
@@ -473,6 +474,11 @@ class WindowSurfaceVk : public SurfaceVk
     angle::FormatID getActualFormatID(vk::Renderer *renderer);
 
     bool mIsSurfaceSizedBySwapchain;
+
+    // Atomic is to allow update state without necessarily locking the mSizeMutex.
+    std::atomic<impl::SurfaceSizeState> mSizeState;
+    // Protects mWidth and mHeight against getUserWidth()/getUserHeight() calls.
+    mutable angle::SimpleMutex mSizeMutex;
 
     std::vector<vk::PresentMode> mPresentModes;
 

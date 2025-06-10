@@ -70,6 +70,8 @@ Dependencies
 
     This extension interacts with EXT_polygon_offset_clamp.
 
+    This extension interacts with EXT_texture_cube_map_array.
+
     This extension interacts with KHR_blend_equation_advanced.
 
     This extension interacts with KHR_debug.
@@ -82,9 +84,13 @@ Dependencies
 
     This extension interacts with OES_sample_variables.
 
+    This extension interacts with OES_texture_cube_map_array.
+
     This extension interacts with QCOM_tiled_rendering.
 
     This extension interacts with OpenGL ES 3.1.
+
+    This extension interacts with OpenGL ES 3.2.
 
     This extension interacts with GLSL ES 3.10.
 
@@ -194,43 +200,32 @@ New Tokens
     Accepted by the <pname> parameter of GetIntegerv():
 
         MAX_PIXEL_LOCAL_STORAGE_PLANES_ANGLE                              0x96E0
-        MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_ANGLE       0x96E1
-        MAX_COMBINED_DRAW_BUFFERS_AND_PIXEL_LOCAL_STORAGE_PLANES_ANGLE    0x96E2
-        PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE                           0x96E3
+        MAX_COMBINED_DRAW_BUFFERS_AND_PIXEL_LOCAL_STORAGE_PLANES_ANGLE    0x96E1
+        PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE                           0x96E2
 
     Accepted as array elements in the <loadops> parameter of
     BeginPixelLocalStorageANGLE():
 
-        LOAD_OP_ZERO_ANGLE                                                0x96E4
-        LOAD_OP_CLEAR_ANGLE                                               0x96E5
-        LOAD_OP_LOAD_ANGLE                                                0x96E6
+        LOAD_OP_ZERO_ANGLE                                                0x96E3
+        LOAD_OP_CLEAR_ANGLE                                               0x96E4
+        LOAD_OP_LOAD_ANGLE                                                0x96E5
 
     Accepted as array elements in the <storeops> parameter of
     EndPixelLocalStorageANGLE():
 
-        STORE_OP_STORE_ANGLE                                              0x96E7
+        STORE_OP_STORE_ANGLE                                              0x96E6
 
     Accepted by the <pname> parameter of
-    GetFramebufferPixelLocalStorageParameterivANGLE() and
-    GetFramebufferPixelLocalStorageParameterivRobustANGLE():
+    GetFramebufferPixelLocalStorageParameter{f,i}vANGLE() and
+    GetFramebufferPixelLocalStorageParameter{f,i}vRobustANGLE():
 
-        PIXEL_LOCAL_FORMAT_ANGLE                                          0x96E8
-        PIXEL_LOCAL_TEXTURE_NAME_ANGLE                                    0x96E9
-        PIXEL_LOCAL_TEXTURE_LEVEL_ANGLE                                   0x96EA
-        PIXEL_LOCAL_TEXTURE_LAYER_ANGLE                                   0x96EB
-
-    Accepted by the <pname> parameter of
-    GetFramebufferPixelLocalStorageParameterfvANGLE() and
-    GetFramebufferPixelLocalStorageParameterfvRobustANGLE():
-
-        PIXEL_LOCAL_CLEAR_VALUE_FLOAT_ANGLE                               0x96EC
-
-    Accepted by the <pname> parameter of
-    GetFramebufferPixelLocalStorageParameterivANGLE() and
-    GetFramebufferPixelLocalStorageParameterivRobustANGLE():
-
-        PIXEL_LOCAL_CLEAR_VALUE_INT_ANGLE                                 0x96ED
-        PIXEL_LOCAL_CLEAR_VALUE_UNSIGNED_INT_ANGLE                        0x96EE
+        PIXEL_LOCAL_FORMAT_ANGLE                                          0x96E7
+        PIXEL_LOCAL_TEXTURE_NAME_ANGLE                                    0x96E8
+        PIXEL_LOCAL_TEXTURE_LEVEL_ANGLE                                   0x96E9
+        PIXEL_LOCAL_TEXTURE_LAYER_ANGLE                                   0x96EA
+        PIXEL_LOCAL_CLEAR_VALUE_FLOAT_ANGLE                               0x96EB
+        PIXEL_LOCAL_CLEAR_VALUE_INT_ANGLE                                 0x96EC
+        PIXEL_LOCAL_CLEAR_VALUE_UNSIGNED_INT_ANGLE                        0x96ED
 
 New GLSL Opaque Types
 
@@ -371,12 +366,6 @@ Additions to the OpenGL ES Specification, Version 3.0.6
         an image attached to any color attachment point on or after:
 
           COLOR_ATTACHMENT0 +
-          MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_ANGLE
-
-      * INVALID_FRAMEBUFFER_OPERATION is generated if the draw framebuffer has
-        an image attached to any color attachment point on or after:
-
-          COLOR_ATTACHMENT0 +
           MAX_COMBINED_DRAW_BUFFERS_AND_PIXEL_LOCAL_STORAGE_PLANES_ANGLE - <n>
 
       * INVALID_VALUE is generated if <loadops> is NULL.
@@ -406,12 +395,16 @@ Additions to the OpenGL ES Specification, Version 3.0.6
       * INVALID_OPERATION is generated if the draw framebuffer has no
         attachments and no enabled, texture-backed pixel local storage planes.
 
-      * INVALID_OPERATION is generated if a single texture image is bound to
+      * INVALID_OPERATION is generated if, for any enabled backing texture, the
+        mipmap level bound to pixel local storage is outside the effective
+        base/max range of that texture.
+
+      * INVALID_OPERATION is generated if a single texture slice is bound to
         more than one active pixel local storage plane.
 
-      * INVALID_OPERATION is generated if a single texture image is
-        simultaneously bound to a pixel local storage plane and attached to the
-        draw framebuffer.
+      * INVALID_OPERATION is generated if a single texture slice is
+        simultaneously bound to an active pixel local storage plane and attached
+        to an enabled drawbuffer.
 
     Errors generated by EndPixelLocalStorageANGLE():
 
@@ -438,49 +431,51 @@ Additions to the OpenGL ES Specification, Version 3.0.6
 
       * PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE is updated to equal <n>.
 
-      * BLEND is disabled and COLOR_WRITEMASK is updated to {TRUE, TRUE, TRUE,
-        TRUE} for all draw buffers whose index is >= <i>, where:
-
-        <i> = min(
-           MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_ANGLE,
-           MAX_COMBINED_DRAW_BUFFERS_AND_PIXEL_LOCAL_STORAGE_PLANES_ANGLE - <n>)
+      * OpenGL ES 3.1, implementation-dependent: FRAMEBUFFER_DEFAULT_WIDTH and
+        FRAMEBUFFER_DEFAULT_HEIGHT may reflect the dimensions of the pixel local
+        storage planes, instead of their original values. This will last until
+        pixel local storage ends.
 
     Pixel local storage data will persist across all fragment invocations and
     across all draws issued until the application calls
-    EndPixelLocalStorageANGLE(), even if the application binds different shader
-    programs. In order to make this guarantee, additional restrictions go into
-    effect while PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE is nonzero:
+    EndPixelLocalStorageANGLE(), or until a command is issued that implicitly
+    destroys the active render pass.
 
-      * Calls that modify the target framebuffer in any way (including
-        READ_FRAMEBUFFER), or change any framebuffer binding, end pixel local
-        storage implicitly with <storeops> of STORE_OP_STORE_ANGLE.
+    When a command destroys the active render pass, it is as if
+    EndPixelLocalStorageANGLE() had been called with
+    <n>=PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE and <storeops> of
+    STORE_OP_STORE_ANGLE. These commands are defined as:
 
-        e.g., BindFramebuffer, DrawBuffers, FramebufferTexture*,
-        FramebufferRenderbuffer, FramebufferParameteri,
+      * Commands that modify the framebuffer in any way, or change any
+        framebuffer binding.
+
+        e.g., BindFramebuffer, DeleteTextures/DeleteRenderbuffers (if
+        destroying an object attached to the draw framebuffer), DrawBuffers,
+        FramebufferTexture*, FramebufferRenderbuffer, FramebufferParameteri,
         FramebufferMemorylessPixelLocalStorageANGLE, etc.
 
-      * Calls that transfer pixels in or out of the framebuffer end pixel local
-        storage implicitly with <storeops> of STORE_OP_STORE_ANGLE.
+      * Commands that transfer pixels in or out of the framebuffer.
 
         e.g., ReadPixels, BlitFramebuffer, CopyTexImage2D, CopyTexSubImage*,
         etc.
 
-      * BeginTransformFeedback() and StartTilingQCOM() end pixel local storage
-        implicitly with <storeops> of STORE_OP_STORE_ANGLE.
+      * Commands that invalidate tiled memory.
+
+        e.g., DiscardFramebufferEXT, InvalidateFramebuffer,
+        InvalidateSubFramebuffer, etc.
+
+      * BeginTransformFeedback
+      * StartTilingQCOM
+
+    In order to guarantee that pixel local storage contents remain valid,
+    additional restrictions go into effect while
+    PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE is nonzero:
 
       * INVALID_OPERATION is generated by calls that would modify an active
         pixel local storage backing texture.
 
         e.g., TexSubImage*, TexParameter*, GenerateMipmap,
-        InvalidateTextureANGLE, if the texture bound at 'target' is also backing
-        an active pixel local storage plane.
-
-      * INVALID_OPERATION is generated by commands that invalidate or flush
-        tiled memory, including those mentioned in
-        EXT_shader_pixel_local_storage:
-
-        ClientWaitSync, DiscardFramebufferEXT, Finish, Flush,
-        InvalidateFramebuffer, InvalidateSubFramebuffer
+        InvalidateTextureANGLE, etc.
 
       * INVALID_OPERATION is generated by Enable(), Disable() if <cap> is not
         one of: BLEND, CULL_FACE, DEBUG_OUTPUT, DEBUG_OUTPUT_SYNCHRONOUS,
@@ -488,49 +483,6 @@ Additions to the OpenGL ES Specification, Version 3.0.6
         POLYGON_OFFSET_LINE_NV, POLYGON_OFFSET_LINE_ANGLE, POLYGON_OFFSET_FILL,
         PRIMITIVE_RESTART_FIXED_INDEX, RASTERIZER_DISCARD, SCISSOR_TEST,
         SCISSOR_TEST_EXCLUSIVE_NV, STENCIL_TEST, CLIP_DISTANCE[0..7]_EXT
-
-      * Calls to ClearBuffer{f,i,ui}v() are ignored if <buffer> is COLOR and any
-        of the following are true:
-
-        <buffer> >= MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_ANGLE
-        <buffer> >=
-            (MAX_COMBINED_DRAW_BUFFERS_AND_PIXEL_LOCAL_STORAGE_PLANES_ANGLE -
-             ACTIVE_PIXEL_LOCAL_STORAGE_PLANES_ANGLE)
-
-      * INVALID_OPERATION is generated by calls to
-        GetFramebufferAttachmentParameteriv() if <attachment> references a COLOR
-        attachment and any of the following are true:
-
-        <attachment> >=
-            COLOR_ATTACHMENT0 +
-            MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_ANGLE
-        <attachment> >=
-            COLOR_ATTACHMENT0 +
-            (MAX_COMBINED_DRAW_BUFFERS_AND_PIXEL_LOCAL_STORAGE_PLANES_ANGLE -
-             ACTIVE_PIXEL_LOCAL_STORAGE_PLANES_ANGLE)
-
-      * Calls to EnableiOES(BLEND, <i>) and ColorMaskiOES(<i>, ...) are ignored
-        if any of the following are true:
-
-        <i> >= MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_ANGLE
-        <i> >= (MAX_COMBINED_DRAW_BUFFERS_AND_PIXEL_LOCAL_STORAGE_PLANES_ANGLE -
-                ACTIVE_PIXEL_LOCAL_STORAGE_PLANES_ANGLE)
-
-      * Calls to Enable(BLEND) and ColorMask() only update state on draw buffers
-        whose index is less than <n>, where:
-
-        <n> = min(
-                MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_ANGLE,
-                MAX_COMBINED_DRAW_BUFFERS_AND_PIXEL_LOCAL_STORAGE_PLANES_ANGLE -
-                ACTIVE_PIXEL_LOCAL_STORAGE_PLANES_ANGLE);
-
-        i.e., their behavior is overridden to the equivalence of:
-
-        for (int i = 0; i < <n>; ++i)
-            EnableiOES(BLEND, i)
-
-        for (int i = 0; i < <n>; ++i)
-            ColorMaskiOES(i, ...)
 
       * INVALID_OPERATION is generated by Enablei*(), Disablei*() if <cap> is
         not one of: BLEND, SCISSOR_TEST, SCISSOR_TEST_EXCLUSIVE_NV
@@ -542,9 +494,6 @@ Additions to the OpenGL ES Specification, Version 3.0.6
 
       * INVALID_OPERATION is generated by BlendEquation*() if <mode> is one of
         the advanced blend equations defined in KHR_blend_equation_advanced.
-
-      * INVALID_OPERATION is generated if a draw is issued with a fragment
-        shader that accesses a texture bound to pixel local storage.
 
       * INVALID_OPERATION is generated if a draw is issued with a fragment
         shader that has a pixel local uniform bound to an inactive pixel local
@@ -649,6 +598,13 @@ Additions to the OpenGL ES Specification, Version 3.0.6
     the value of PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE at the time this
     framebuffer entered an interrupted state. This command is ignored when the
     default framebuffer object name 0 is bound.
+
+  Modify Section 3.8.10.3 "Rendering Feedback Loops"
+
+  (Modify the second bullet point)
+
+    * The texture is attached to one of the attachment points or active pixel
+      local storage planes, A, of framebuffer object F
 
   Modify Section 4.4.2 "Attaching Images to Framebuffer Objects"
 
@@ -777,6 +733,12 @@ Additions to the OpenGL ES Specification, Version 3.0.6
 
         - Zero if <backingtexture> is a TEXTURE_2D
         - The array index to bind if <backingtexture> is a TEXTURE_2D_ARRAY
+        - The cube map face index to bind if <backingtexture> is a
+          TEXTURE_CUBE_MAP; indices zero to five correspond to the following
+          cube map faces: +X, -X, +Y, -Y, +Z, -Z
+        - The cube map array layer-face index to bind if <backingtexture> is a
+          TEXTURE_CUBE_MAP_ARRAY_EXT, TEXTURE_CUBE_MAP_ARRAY_OES, or
+          TEXTURE_CUBE_MAP_ARRAY
 
     Errors:
 
@@ -797,7 +759,9 @@ Additions to the OpenGL ES Specification, Version 3.0.6
         existing immutable texture object, or zero.
 
       * INVALID_OPERATION is generated if <backingtexture> is nonzero and not of
-        type TEXTURE_2D or TEXTURE_2D_ARRAY.
+        type TEXTURE_2D, TEXTURE_2D_ARRAY, TEXTURE_CUBE_MAP,
+        TEXTURE_CUBE_MAP_ARRAY_EXT, TEXTURE_CUBE_MAP_ARRAY_OES, or
+        TEXTURE_CUBE_MAP_ARRAY.
 
       * INVALID_VALUE is generated if <backingtexture> is nonzero and
         <level> < 0.
@@ -881,14 +845,10 @@ Additions to the OpenGL ES Specification, Version 3.0.6
 
       void GetFramebufferPixelLocalStorageParameterfvANGLE(int plane,
                                                            enum pname,
-                                                           GLsizei bufSize,
-                                                           GLsizei *length,
                                                            GLfloat *params)
 
       void GetFramebufferPixelLocalStorageParameterivANGLE(int plane,
                                                            enum pname,
-                                                           GLsizei bufSize,
-                                                           GLsizei *length,
                                                            GLint *params)
 
     Parameters:
@@ -933,16 +893,10 @@ Additions to the OpenGL ES Specification, Version 3.0.6
       * INVALID_FRAMEBUFFER_OPERATION is generated if the default framebuffer
         object name 0 is bound to DRAW_FRAMEBUFFER.
 
-      * INVALID_FRAMEBUFFER_OPERATION is generated if pixel local storage on the
-        draw framebuffer is in an interrupted state. (See section 2.X.2
-        "Interrupting Pixel Local Storage")
-
       * INVALID_VALUE is generated if
         <plane> < 0 or <plane> >= MAX_PIXEL_LOCAL_STORAGE_PLANES_ANGLE.
 
-      * INVALID_ENUM is generated if <pname> is not in Table 6.Y, or if the
-        command issued is not the associated "Get Command" for <pname> in Table
-        6.Y.
+      * INVALID_ENUM is generated if <pname> is not in Table 6.Y.
 
       * INVALID_VALUE is generated if <params> is NULL.
 
@@ -986,17 +940,10 @@ Additions to the OpenGL ES Specification, Version 3.0.6
     MAX_PIXEL_LOCAL_STORAGE-
     _PLANES_ANGLE                       Z+   GetIntegerv      4      4.4.2.X
 
-    MAX_COLOR_ATTACHMENTS_WITH-
-    _ACTIVE_PIXEL_LOCAL_STORAGE_ANGLE   Z+   GetIntegerv     *0!         2.X
-
     MAX_COMBINED_DRAW_BUFFERS_AND-
     _PIXEL_LOCAL_STORAGE_PLANES_ANGLE   Z+   GetIntegerv      4          2.X
 
     Table 6.X: Impementation Dependent Pixel Local Storage Limits
-
-    Note that MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_ANGLE may be
-    zero, in which case the application cannot render to any other color
-    attachments while PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE is nonzero.
 
                                                                 Initial
     Get Value                  Type  Get Command                 Value    Sec.
@@ -1044,8 +991,9 @@ Interactions with the ANGLE_request_extension specification
 Interactions with ANGLE_provoking_vertex, ANGLE_polygon_mode,
 EXT_blend_func_extended, EXT_clip_control, EXT_clip_cull_distance,
 EXT_depth_clamp, EXT_draw_buffers_indexed, EXT_polygon_offset_clamp,
-KHR_blend_equation_advanced, KHR_debug, NV_polygon_mode,
-NV_scissor_exclusive, OES_draw_buffers_indexed
+EXT_texture_cube_map_array, KHR_blend_equation_advanced, KHR_debug,
+NV_polygon_mode, NV_scissor_exclusive, OES_draw_buffers_indexed,
+OES_texture_cube_map_array
 
     If any of these extensions is not supported, ignore the applicable
     references to the extension itself, and to BlendEquationSeparatei*,
@@ -1055,7 +1003,8 @@ NV_scissor_exclusive, OES_draw_buffers_indexed
     ProvokingVertexANGLE, ObjectPtrLabel*, PopDebugGroup*, PushDebugGroup*,
     DEBUG_OUTPUT, DEBUG_OUTPUT_SYNCHRONOUS, SCISSOR_TEST_EXCLUSIVE_NV,
     CLIP_DISTANCE[0..7]_EXT, POLYGON_OFFSET_POINT_NV, POLYGON_OFFSET_LINE_NV,
-    POLYGON_OFFSET_LINE_ANGLE symbols.
+    POLYGON_OFFSET_LINE_ANGLE, TEXTURE_CUBE_MAP_ARRAY_EXT,
+    TEXTURE_CUBE_MAP_ARRAY_OES symbols.
 
 Interactions with OpenGL ES 3.1
 
@@ -1066,6 +1015,10 @@ Interactions with OpenGL ES 3.1
   Add active pixel local storage planes to the list of resource types that count
   against MAX_COMBINED_SHADER_OUTPUT_RESOURCES.
 
+Interactions with OpenGL ES 3.2
+
+  If OpenGL ES 3.2 is not supported, ignore all references to the
+  TEXTURE_CUBE_MAP_ARRAY symbol.
 
 Additions to the OpenGL ES Shading Language Specification, Version 3.00
 
@@ -1303,13 +1256,17 @@ Issues
 
     (4) Should we support binding cube map layers to pixel local storage?
 
-      RESOLVED: No. There is currently a 1:1 mapping on every implementation
-      from pixel local storage shaders to backend shaders, but binding a cube
-      map layer would require a texelFetch() implementation to behave
-      differently in the shader. We can always add cube map support in the
-      future, if the need arises.
+      RESOLVED: Yes. Cube map and cube map array layers use the same binding
+      semantics as 2D array layers.
 
     (5) Can we support transform feedback?
 
       RESOLVED: No. Transform feedback can lead to render pass breaks in the
       Vulkan backend.
+
+    (6) Should feedback loops between sampled textures and pixel local storage
+    planes generate errors?
+
+      RESOLVED: No. Follow the language for feedback loops between framebuffer
+      attachments and sampled textures. Rendering results are undefined. Layered
+      APIs such as WebGL make this case an error.
