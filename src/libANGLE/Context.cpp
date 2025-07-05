@@ -201,6 +201,11 @@ angle::Result GetQueryObjectParameter(const Context *context, Query *query, GLen
                 break;
             case GL_QUERY_RESULT_AVAILABLE_EXT:
                 *params = GL_FALSE;
+                if (context->isContextLost())
+                {
+                    context->contextLostErrorOnBlockingCall(angle::EntryPoint::GLGetQueryObjectuiv);
+                    *params = GL_TRUE;
+                }
                 break;
             default:
                 UNREACHABLE();
@@ -4740,7 +4745,7 @@ angle::Result Context::prepareForInvalidate(GLenum target)
     {
         effectiveTarget = GL_DRAW_FRAMEBUFFER;
     }
-    ANGLE_TRY(mState.syncDirtyObject(this, effectiveTarget));
+    ANGLE_TRY(mState.syncDirtyObject(this, effectiveTarget, Command::Invalidate));
     const state::DirtyBits dirtyBits                 = effectiveTarget == GL_READ_FRAMEBUFFER
                                                            ? kReadInvalidateDirtyBits
                                                            : kDrawInvalidateDirtyBits;
@@ -6476,7 +6481,7 @@ void Context::getMultisamplefv(GLenum pname, GLuint index, GLfloat *val)
 {
     // According to spec 3.1 Table 20.49: Framebuffer Dependent Values,
     // the sample position should be queried by DRAW_FRAMEBUFFER.
-    ANGLE_CONTEXT_TRY(mState.syncDirtyObject(this, GL_DRAW_FRAMEBUFFER));
+    ANGLE_CONTEXT_TRY(mState.syncDirtyObject(this, GL_DRAW_FRAMEBUFFER, Command::GetMultisample));
     const Framebuffer *framebuffer = mState.getDrawFramebuffer();
 
     switch (pname)
@@ -9331,7 +9336,7 @@ void Context::onSubjectStateChange(angle::SubjectIndex index, angle::SubjectMess
             }
             else if (index < kUniformBufferMaxSubjectIndex)
             {
-                mState.onUniformBufferStateChange(index - kUniformBuffer0SubjectIndex);
+                mState.onUniformBufferStateChange(index - kUniformBuffer0SubjectIndex, message);
                 mStateCache.onUniformBufferStateChange(this);
             }
             else if (index < kAtomicCounterBufferMaxSubjectIndex)

@@ -2887,6 +2887,32 @@ angle::Result ContextVk::handleDirtyComputeShaderResources(DirtyBits::Iterator *
                                           dirtyBitsIterator);
 }
 
+void ContextVk::updateUniformBufferBlocksOffset()
+{
+    gl::ProgramExecutable *executable = mState.getProgramExecutable();
+    ASSERT(executable);
+    ASSERT(executable->hasUniformBuffers());
+    ProgramExecutableVk *executableVk = vk::GetImpl(executable);
+    ASSERT(executableVk);
+    ASSERT(executableVk->usesDynamicUniformBufferDescriptors());
+
+    gl::ProgramUniformBlockMask dirtyBlocks =
+        mState.getAndResetDirtyUniformBlocks() & executable->getActiveUniformBufferBlocks();
+    for (size_t blockIndex : dirtyBlocks)
+    {
+        const GLuint binding = executable->getUniformBlockBinding(blockIndex);
+        mShaderBuffersDescriptorDesc.updateOneShaderBufferOffset(
+            blockIndex, mState.getOffsetBindingPointerUniformBuffers()[binding],
+            executableVk->getUniformBufferDescriptorType(), mShaderBufferWriteDescriptorDescs);
+    }
+
+    executableVk->updateShaderResourcesOffsets(mShaderBufferWriteDescriptorDescs,
+                                               mShaderBuffersDescriptorDesc);
+
+    // Mark descriptor sets dirty
+    mGraphicsDirtyBits.set(DIRTY_BIT_DESCRIPTOR_SETS);
+}
+
 template <typename CommandBufferT>
 angle::Result ContextVk::handleDirtyUniformBuffersImpl(CommandBufferT *commandBufferHelper)
 {
@@ -2897,8 +2923,9 @@ angle::Result ContextVk::handleDirtyUniformBuffersImpl(CommandBufferT *commandBu
     const VkPhysicalDeviceLimits &limits = mRenderer->getPhysicalDeviceProperties().limits;
     ProgramExecutableVk *executableVk    = vk::GetImpl(executable);
 
-    gl::ProgramUniformBlockMask dirtyBits = mState.getAndResetDirtyUniformBlocks();
-    for (size_t blockIndex : dirtyBits)
+    gl::ProgramUniformBlockMask dirtyBlocks =
+        mState.getAndResetDirtyUniformBlocks() & executable->getActiveUniformBufferBlocks();
+    for (size_t blockIndex : dirtyBlocks)
     {
         const GLuint binding = executable->getUniformBlockBinding(blockIndex);
         mShaderBuffersDescriptorDesc.updateOneShaderBuffer(
@@ -5919,13 +5946,33 @@ angle::Result ContextVk::syncState(const gl::Context *context,
                               "Dirty bit order");
                 iter.setLaterBit(gl::state::DIRTY_BIT_ATOMIC_COUNTER_BUFFER_BINDING);
                 break;
-            case gl::state::DIRTY_BIT_UNIFORM_BUFFER_BINDINGS:
-                ANGLE_TRY(invalidateCurrentShaderUniformBuffers());
-                break;
             case gl::state::DIRTY_BIT_ATOMIC_COUNTER_BUFFER_BINDING:
                 ANGLE_TRY(invalidateCurrentShaderResources(command));
+                // invalidateCurrentShaderResources(...) already dirties all uniform buffers
+                static_assert(gl::state::DIRTY_BIT_UNIFORM_BUFFER_BINDINGS >
+                                  gl::state::DIRTY_BIT_ATOMIC_COUNTER_BUFFER_BINDING,
+                              "Dirty bit order");
+                iter.resetLaterBit(gl::state::DIRTY_BIT_UNIFORM_BUFFER_BINDINGS);
                 invalidateDriverUniforms();
                 break;
+            case gl::state::DIRTY_BIT_UNIFORM_BUFFER_BINDINGS:
+            {
+                constexpr gl::BufferDirtyTypeBitMask kOnlyOffsetDirtyMask{
+                    gl::BufferDirtyType::Offset};
+                const gl::BufferDirtyTypeBitMask currentDirtyTypeMask =
+                    glState.getAndResetUniformBufferBlocksDirtyTypeMask();
+                ASSERT(programExecutable);
+                if (vk::GetImpl(programExecutable)->usesDynamicUniformBufferDescriptors() &&
+                    currentDirtyTypeMask == kOnlyOffsetDirtyMask)
+                {
+                    updateUniformBufferBlocksOffset();
+                }
+                else
+                {
+                    ANGLE_TRY(invalidateCurrentShaderUniformBuffers());
+                }
+                break;
+            }
             case gl::state::DIRTY_BIT_MULTISAMPLING:
                 // When disabled, this should configure the pipeline to render as if single-sampled,
                 // and write the results to all samples of a pixel regardless of coverage. See
