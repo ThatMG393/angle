@@ -34,22 +34,23 @@ class UpdateDescriptorSetsBuilder;
 
 // Some descriptor set and pipeline layout constants.
 //
-// The set/binding assignment is done as following:
+// The set/binding assignment is done as follows:
 //
 // - Set 0 contains uniform blocks created to encompass default uniforms.  1 binding is used per
 //   pipeline stage.  Additionally, transform feedback buffers are bound from binding 2 and up.
 //   For internal shaders, set 0 is used for all the needed resources.
 // - Set 1 contains all textures (including texture buffers).
-// - Set 2 contains all other shader resources, such as uniform and storage blocks, atomic counter
+// - Set 2 contains all uniform buffers
+// - Set 3 contains all other shader resources, such as storage buffers, atomic counter
 //   buffers, images and image buffers.
-// - Set 3 reserved for OpenCL
 
 enum class DescriptorSetIndex : uint32_t
 {
     Internal       = 0,         // Internal shaders
     UniformsAndXfb = Internal,  // Uniforms set index
     Texture        = 1,         // Textures set index
-    ShaderResource = 2,         // Other shader resources set index
+    UniformBuffers = 2,         // Uniform buffers set index
+    ShaderResource = 3,         // Other shader resources set index
 
     // CL specific naming for set indices
     LiteralSampler  = 0,
@@ -72,6 +73,7 @@ class PipelineCacheAccess;
 class RenderPassCommandBufferHelper;
 class PackedClearValuesArray;
 class AttachmentOpsArray;
+class CommandBufferHelperCommon;
 
 using PipelineLayoutPtr      = AtomicSharedPtr<PipelineLayout>;
 using DescriptorSetLayoutPtr = AtomicSharedPtr<DescriptorSetLayout>;
@@ -1238,7 +1240,7 @@ class DescriptorSetLayoutDesc final
 #endif
 };
 
-// The following are for caching descriptor set layouts. Limited to max three descriptor set
+// The following are for caching descriptor set layouts. Limited to max four descriptor set
 // layouts. This can be extended in the future.
 constexpr size_t kMaxDescriptorSetLayouts = ToUnderlying(DescriptorSetIndex::EnumCount);
 
@@ -1850,7 +1852,7 @@ class WriteDescriptorDescs
 
     void updateInputAttachments(const gl::ProgramExecutable &executable,
                                 const ShaderInterfaceVariableInfoMap &variableInfoMap,
-                                FramebufferVk *framebufferVk);
+                                const FramebufferVk *framebufferVk);
 
     void updateExecutableActiveTextures(const ShaderInterfaceVariableInfoMap &variableInfoMap,
                                         const gl::ProgramExecutable &executable);
@@ -1875,17 +1877,18 @@ class WriteDescriptorDescs
     size_t getTotalDescriptorCount() const { return mCurrentInfoIndex; }
     size_t getDynamicDescriptorSetCount() const { return mDynamicDescriptorSetCount; }
 
-    uint32_t getDescriptorDescIndexForBufferBlockIndex(VkDescriptorType descriptorType,
-                                                       size_t bindingIndex) const
+    uint32_t getDescriptorDescIndexForUniformBufferBlockIndex(size_t bindingIndex) const
     {
-        ASSERT(IsUniformBuffer(descriptorType) &&
-                   bindingIndex < mUniformBlockIndexToDescriptorDescIndex.size() ||
-               IsStorageBuffer(descriptorType) &&
-                   bindingIndex < mStorageBlockIndexToDescriptorDescIndex.size());
+        ASSERT(bindingIndex < mUniformBlockIndexToDescriptorDescIndex.size());
 
-        return IsUniformBuffer(descriptorType)
-                   ? mUniformBlockIndexToDescriptorDescIndex[bindingIndex]
-                   : mStorageBlockIndexToDescriptorDescIndex[bindingIndex];
+        return mUniformBlockIndexToDescriptorDescIndex[bindingIndex];
+    }
+
+    uint32_t getDescriptorDescIndexForStorageBufferBlockIndex(size_t bindingIndex) const
+    {
+        ASSERT(bindingIndex < mStorageBlockIndexToDescriptorDescIndex.size());
+
+        return mStorageBlockIndexToDescriptorDescIndex[bindingIndex];
     }
 
   private:
@@ -1955,11 +1958,7 @@ class DescriptorSetDesc
         return mDescriptorInfos[infoDescIndex];
     }
 
-    void updateDescriptorSet(Renderer *renderer,
-                             const WriteDescriptorDescs &writeDescriptorDescs,
-                             UpdateDescriptorSetsBuilder *updateBuilder,
-                             const DescriptorDescHandles *handles,
-                             VkDescriptorSet descriptorSet) const;
+    const DescriptorInfoDesc *getInfoDescs() const { return mDescriptorInfos.data(); }
 
   private:
     // After a preliminary minimum size, use heap memory.
@@ -2059,31 +2058,45 @@ class DescriptorSetDescBuilder final
                               TransformFeedbackVk *transformFeedbackVk);
 
     // Specific helpers for shader resource descriptors.
-    template <typename CommandBufferT>
+    void updateOneUniformBuffer(Context *context,
+                                CommandBufferHelperCommon *commandBufferHelper,
+                                const size_t blockIndex,
+                                const gl::InterfaceBlock &block,
+                                const gl::OffsetBindingPointer<gl::Buffer> &bufferBinding,
+                                VkDescriptorType descriptorType,
+                                VkDeviceSize maxBoundBufferRange,
+                                const BufferHelper &emptyBuffer,
+                                const WriteDescriptorDescs &writeDescriptorDescs);
+    void updateOneStorageBuffer(Context *context,
+                                CommandBufferHelperCommon *commandBufferHelper,
+                                const size_t blockIndex,
+                                const gl::InterfaceBlock &block,
+                                const gl::OffsetBindingPointer<gl::Buffer> &bufferBinding,
+                                VkDescriptorType descriptorType,
+                                VkDeviceSize maxBoundBufferRange,
+                                const BufferHelper &emptyBuffer,
+                                const WriteDescriptorDescs &writeDescriptorDescs,
+                                const GLbitfield memoryBarrierBits);
     void updateOneShaderBuffer(Context *context,
-                               CommandBufferT *commandBufferHelper,
-                               const size_t blockIndex,
+                               CommandBufferHelperCommon *commandBufferHelper,
+                               const uint32_t infoDescIndex,
                                const gl::InterfaceBlock &block,
                                const gl::OffsetBindingPointer<gl::Buffer> &bufferBinding,
                                VkDescriptorType descriptorType,
                                VkDeviceSize maxBoundBufferRange,
-                               const BufferHelper &emptyBuffer,
-                               const WriteDescriptorDescs &writeDescriptorDescs,
-                               const GLbitfield memoryBarrierBits);
-    template <typename CommandBufferT>
-    void updateShaderBuffers(Context *context,
-                             CommandBufferT *commandBufferHelper,
-                             const gl::ProgramExecutable &executable,
-                             const gl::BufferVector &buffers,
-                             const std::vector<gl::InterfaceBlock> &blocks,
-                             VkDescriptorType descriptorType,
-                             VkDeviceSize maxBoundBufferRange,
-                             const BufferHelper &emptyBuffer,
-                             const WriteDescriptorDescs &writeDescriptorDescs,
-                             const GLbitfield memoryBarrierBits);
-    template <typename CommandBufferT>
+                               const BufferHelper &emptyBuffer);
+    void updateStorageBuffers(Context *context,
+                              CommandBufferHelperCommon *commandBufferHelper,
+                              const gl::ProgramExecutable &executable,
+                              const gl::BufferVector &buffers,
+                              const std::vector<gl::InterfaceBlock> &blocks,
+                              VkDescriptorType descriptorType,
+                              VkDeviceSize maxBoundBufferRange,
+                              const BufferHelper &emptyBuffer,
+                              const WriteDescriptorDescs &writeDescriptorDescs,
+                              const GLbitfield memoryBarrierBits);
     void updateAtomicCounters(Context *context,
-                              CommandBufferT *commandBufferHelper,
+                              CommandBufferHelperCommon *commandBufferHelper,
                               const gl::ProgramExecutable &executable,
                               const ShaderInterfaceVariableInfoMap &variableInfoMap,
                               const gl::BufferVector &buffers,
@@ -2091,10 +2104,9 @@ class DescriptorSetDescBuilder final
                               const VkDeviceSize requiredOffsetAlignment,
                               const BufferHelper &emptyBuffer,
                               const WriteDescriptorDescs &writeDescriptorDescs);
-    void updateOneShaderBufferOffset(const size_t blockIndex,
-                                     const gl::OffsetBindingPointer<gl::Buffer> &bufferBinding,
-                                     VkDescriptorType descriptorType,
-                                     const WriteDescriptorDescs &writeDescriptorDescs);
+    void updateOneUniformBufferOffset(const size_t blockIndex,
+                                      const gl::OffsetBindingPointer<gl::Buffer> &bufferBinding,
+                                      const WriteDescriptorDescs &writeDescriptorDescs);
     angle::Result updateImages(Context *context,
                                const gl::ProgramExecutable &executable,
                                const ShaderInterfaceVariableInfoMap &variableInfoMap,
@@ -2104,22 +2116,20 @@ class DescriptorSetDescBuilder final
     angle::Result updateInputAttachments(vk::Context *context,
                                          const gl::ProgramExecutable &executable,
                                          const ShaderInterfaceVariableInfoMap &variableInfoMap,
-                                         FramebufferVk *framebufferVk,
+                                         const FramebufferVk *framebufferVk,
                                          const WriteDescriptorDescs &writeDescriptorDescs);
 
     // Specialized update for textures.
     void updatePreCacheActiveTextures(Context *context,
                                       const gl::ProgramExecutable &executable,
                                       const gl::ActiveTextureArray<TextureVk *> &textures,
-                                      const gl::SamplerBindingVector &samplers);
-
-    void updateDescriptorSet(Renderer *renderer,
-                             const WriteDescriptorDescs &writeDescriptorDescs,
-                             UpdateDescriptorSetsBuilder *updateBuilder,
-                             VkDescriptorSet descriptorSet) const;
+                                      const gl::SamplerBindingVector &samplers,
+                                      const WriteDescriptorDescs &writeDescriptorDescs);
 
     const uint32_t *getDynamicOffsets() const { return mDynamicOffsets.data(); }
     size_t getDynamicOffsetsSize() const { return mDynamicOffsets.size(); }
+
+    const DescriptorDescHandles *getHandles() const { return mHandles.data(); }
 
   private:
     void updateInputAttachment(Context *context,
@@ -2453,9 +2463,9 @@ enum class VulkanCacheType
     Sampler,
     SamplerYcbcrConversion,
     DescriptorSetLayout,
-    DriverUniformsDescriptors,
-    TextureDescriptors,
     UniformsAndXfbDescriptors,
+    TextureDescriptors,
+    UniformBuffersDescriptors,
     ShaderResourcesDescriptors,
     Framebuffer,
     DescriptorMetaCache,
@@ -3011,6 +3021,11 @@ class UpdateDescriptorSetsBuilder final : angle::NonCopyable
 
     // Returns the number of written descriptor sets.
     uint32_t flushDescriptorSetUpdates(VkDevice device);
+
+    void updateWriteDescriptorSet(vk::Renderer *renderer,
+                                  const vk::DescriptorSetDescBuilder &descriptorSetDescBuilder,
+                                  const vk::WriteDescriptorDescs &writeDescriptorDescs,
+                                  const VkDescriptorSet descriptorSet);
 
   private:
     // Manage the storage for VkDescriptorBufferInfo and VkDescriptorImageInfo. The storage is not

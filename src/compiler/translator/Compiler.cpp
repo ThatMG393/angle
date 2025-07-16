@@ -251,12 +251,7 @@ struct UniformSortComparator
         // If both uniforms are mediump or lowp, we further sort them based on a list of criteria
         ASSERT(firstType.getPrecision() != TPrecision::EbpHigh &&
                secondType.getPrecision() != TPrecision::EbpHigh);
-        // criteria 1: sort by arrayness. Non-array element is smaller.
-        if (firstType.isArray() != secondType.isArray())
-        {
-            return !firstType.isArray();
-        }
-        // criteria 2: sort by whether the uniform is a struct. Non-structs is smaller.
+        // criteria 1: sort by whether the uniform is a struct. Non-structs is smaller.
         if ((firstType.getStruct() == nullptr) != (secondType.getStruct() == nullptr))
         {
             return firstType.getStruct() == nullptr;
@@ -265,6 +260,11 @@ struct UniformSortComparator
         if (firstType.getStruct() != nullptr && secondType.getStruct() != nullptr)
         {
             return firstType.isStructSpecifier();
+        }
+        // criteria 2: sort by arrayness. Non-array element is smaller.
+        if (firstType.isArray() != secondType.isArray())
+        {
+            return !firstType.isArray();
         }
         // criteria 3, non-matrix is smaller than matrix
         if (firstType.isMatrix() != secondType.isMatrix())
@@ -376,23 +376,6 @@ int GetMaxUniformVectorsForShaderType(GLenum shaderType, const ShBuiltInResource
 namespace
 {
 
-class [[nodiscard]] TScopedPoolAllocator
-{
-  public:
-    TScopedPoolAllocator(angle::PoolAllocator *allocator) : mAllocator(allocator)
-    {
-        mAllocator->push();
-        SetGlobalPoolAllocator(mAllocator);
-    }
-    ~TScopedPoolAllocator()
-    {
-        SetGlobalPoolAllocator(nullptr);
-        mAllocator->pop(angle::PoolAllocator::ReleaseStrategy::All);
-    }
-
-  private:
-    angle::PoolAllocator *mAllocator;
-};
 
 class [[nodiscard]] TScopedSymbolTableLevel
 {
@@ -482,14 +465,12 @@ bool ValidateFragColorAndFragData(GLenum shaderType,
 
 TShHandleBase::TShHandleBase()
 {
-    allocator.push();
     SetGlobalPoolAllocator(&allocator);
 }
 
 TShHandleBase::~TShHandleBase()
 {
     SetGlobalPoolAllocator(nullptr);
-    allocator.popAll();
 }
 
 TCompiler::TCompiler(sh::GLenum type, ShShaderSpec spec, ShShaderOutput output)
@@ -1505,7 +1486,7 @@ bool TCompiler::compile(const char *const shaderStrings[],
         compileOptions.flattenPragmaSTDGLInvariantAll = true;
     }
 
-    TScopedPoolAllocator scopedAlloc(&allocator);
+    TScopedPoolAllocator scopedAlloc;
     TIntermBlock *root = compileTreeImpl(shaderStrings, numStrings, compileOptions);
 
     if (root)
