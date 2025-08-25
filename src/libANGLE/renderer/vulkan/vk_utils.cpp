@@ -641,6 +641,40 @@ angle::Result InitShaderModule(ErrorContext *context,
     return angle::Result::Continue;
 }
 
+angle::Result InitExternalSharedFDMemory(
+    ErrorContext *context,
+    const VkExternalMemoryHandleTypeFlagBits externalMemoryHandleType,
+    const int32_t sharedBufferFD,
+    VkMemoryPropertyFlags memoryProperties,
+    Buffer *buffer,
+    VkMemoryPropertyFlags *memoryPropertyFlagsOut,
+    uint32_t *memoryTypeIndexOut,
+    DeviceMemory *deviceMemoryOut,
+    VkDeviceSize *sizeOut)
+{
+    VkMemoryRequirements externalMemoryRequirements;
+    VkDevice device = context->getRenderer()->getDevice();
+    vkGetBufferMemoryRequirements(device, buffer->getHandle(), &externalMemoryRequirements);
+
+    VkMemoryFdPropertiesKHR memoryFdProperties = {};
+    vkGetMemoryFdPropertiesKHR(device, externalMemoryHandleType, sharedBufferFD,
+                               &memoryFdProperties);
+    externalMemoryRequirements.memoryTypeBits = memoryFdProperties.memoryTypeBits;
+
+    VkImportMemoryFdInfoKHR importMemoryFdInfo = {};
+    importMemoryFdInfo.sType                   = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
+    importMemoryFdInfo.handleType              = externalMemoryHandleType;
+    importMemoryFdInfo.fd                      = sharedBufferFD;
+
+    ANGLE_VK_TRY(context, AllocateBufferMemoryWithRequirements(
+                              context, MemoryAllocationType::BufferExternal, memoryProperties,
+                              externalMemoryRequirements, &importMemoryFdInfo, buffer,
+                              memoryPropertyFlagsOut, memoryTypeIndexOut, deviceMemoryOut));
+    *sizeOut = externalMemoryRequirements.size;
+
+    return angle::Result::Continue;
+}
+
 gl::TextureType Get2DTextureType(uint32_t layerCount, GLint samples)
 {
     if (layerCount > 1)
@@ -946,6 +980,9 @@ PFN_vkGetImageMemoryRequirements2KHR vkGetImageMemoryRequirements2KHR   = nullpt
 PFN_vkBindBufferMemory2KHR vkBindBufferMemory2KHR = nullptr;
 PFN_vkBindImageMemory2KHR vkBindImageMemory2KHR   = nullptr;
 
+// VK_KHR_maintenance5
+PFN_vkCmdBindIndexBuffer2KHR vkCmdBindIndexBuffer2KHR = nullptr;
+
 // VK_KHR_external_fence_capabilities
 PFN_vkGetPhysicalDeviceExternalFencePropertiesKHR vkGetPhysicalDeviceExternalFencePropertiesKHR =
     nullptr;
@@ -1042,6 +1079,10 @@ PFN_vkTransitionImageLayoutEXT vkTransitionImageLayoutEXT           = nullptr;
 // VK_KHR_Synchronization2
 PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR = nullptr;
 PFN_vkCmdWriteTimestamp2KHR vkCmdWriteTimestamp2KHR   = nullptr;
+
+// VK_KHR_external_memory_fd
+PFN_vkGetMemoryFdKHR vkGetMemoryFdKHR                     = nullptr;
+PFN_vkGetMemoryFdPropertiesKHR vkGetMemoryFdPropertiesKHR = nullptr;
 
 void InitDebugUtilsEXTFunctions(VkInstance instance)
 {
@@ -1170,6 +1211,12 @@ void InitFragmentShadingRateKHRDeviceFunction(VkDevice device)
     GET_DEVICE_FUNC(vkCmdSetFragmentShadingRateKHR);
 }
 
+// VK_KHR_maintenance5
+void InitMaintenance5Functions(VkDevice device)
+{
+    GET_DEVICE_FUNC(vkCmdBindIndexBuffer2KHR);
+}
+
 // VK_GOOGLE_display_timing
 void InitGetPastPresentationTimingGoogleFunction(VkDevice device)
 {
@@ -1190,6 +1237,12 @@ void InitSynchronization2Functions(VkDevice device)
 {
     GET_DEVICE_FUNC(vkCmdPipelineBarrier2KHR);
     GET_DEVICE_FUNC(vkCmdWriteTimestamp2KHR);
+}
+
+void InitExternalMemoryFdFunctions(VkDevice device)
+{
+    GET_DEVICE_FUNC(vkGetMemoryFdKHR);
+    GET_DEVICE_FUNC(vkGetMemoryFdPropertiesKHR);
 }
 
 #    undef GET_INSTANCE_FUNC

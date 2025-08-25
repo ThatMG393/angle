@@ -63,6 +63,8 @@ constexpr angle::PackedEnumMap<webgpu::RenderPassClosureReason, const char *>
          "Render pass closed for line loop emulation"},
         {webgpu::RenderPassClosureReason::CopyBufferToTexture,
          "Render pass closed to update texture"},
+        {webgpu::RenderPassClosureReason::CopyTextureToTexture,
+         "Render pass closed to copy texture"},
     }};
 
 }  // namespace
@@ -914,7 +916,9 @@ angle::Result ContextWgpu::syncState(const gl::Context *context,
                             break;
                         case gl::state::EXTENDED_DIRTY_BIT_SHADER_DERIVATIVE_HINT:
                             break;
-                        case gl::state::EXTENDED_DIRTY_BIT_SHADING_RATE:
+                        case gl::state::EXTENDED_DIRTY_BIT_SHADING_RATE_QCOM:
+                            break;
+                        case gl::state::EXTENDED_DIRTY_BIT_SHADING_RATE_EXT:
                             break;
                         case gl::state::EXTENDED_DIRTY_BIT_LOGIC_OP_ENABLED:
                             break;
@@ -1018,9 +1022,10 @@ BufferImpl *ContextWgpu::createBuffer(const gl::BufferState &state)
     return new BufferWgpu(state);
 }
 
-VertexArrayImpl *ContextWgpu::createVertexArray(const gl::VertexArrayState &data)
+VertexArrayImpl *ContextWgpu::createVertexArray(const gl::VertexArrayState &data,
+                                                const gl::VertexArrayBuffers &vertexArrayBuffers)
 {
-    return new VertexArrayWgpu(data);
+    return new VertexArrayWgpu(data, vertexArrayBuffers);
 }
 
 QueryImpl *ContextWgpu::createQuery(gl::QueryType type)

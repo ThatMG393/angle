@@ -5585,6 +5585,47 @@ angle::Result BufferHelper::initExternal(ErrorContext *context,
     return angle::Result::Continue;
 }
 
+angle::Result BufferHelper::initAndAcquireFromExternalMemory(
+    Context *context,
+    VkMemoryPropertyFlags memoryProperties,
+    const VkBufferCreateInfo &requestedCreateInfo,
+    const VkExternalMemoryHandleTypeFlagBits externalMemoryHandleType,
+    const int32_t sharedBufferFD)
+{
+    Renderer *renderer = context->getRenderer();
+    ASSERT(renderer);
+
+    initializeBarrierTracker(context);
+
+    VkBufferCreateInfo modifiedCreateInfo             = requestedCreateInfo;
+    VkExternalMemoryBufferCreateInfo externCreateInfo = {};
+    externCreateInfo.sType       = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
+    externCreateInfo.handleTypes = externalMemoryHandleType;
+    externCreateInfo.pNext       = nullptr;
+    modifiedCreateInfo.pNext     = &externCreateInfo;
+
+    DeviceScoped<Buffer> buffer(renderer->getDevice());
+    ANGLE_VK_TRY(context, buffer.get().init(renderer->getDevice(), modifiedCreateInfo));
+
+    DeviceScoped<DeviceMemory> deviceMemory(renderer->getDevice());
+    VkMemoryPropertyFlags memoryPropertyFlagsOut;
+    VkDeviceSize allocatedSize = 0;
+    uint32_t memoryTypeIndex;
+    ANGLE_TRY(InitExternalSharedFDMemory(context, externalMemoryHandleType, sharedBufferFD,
+                                         memoryProperties, &buffer.get(), &memoryPropertyFlagsOut,
+                                         &memoryTypeIndex, &deviceMemory.get(), &allocatedSize));
+
+    mSuballocation.initWithEntireBuffer(context, buffer.get(), MemoryAllocationType::BufferExternal,
+                                        memoryTypeIndex, deviceMemory.get(), memoryPropertyFlagsOut,
+                                        requestedCreateInfo.size, allocatedSize);
+    if (isHostVisible())
+    {
+        uint8_t *ptrOut;
+        ANGLE_TRY(map(context, &ptrOut));
+    }
+    return angle::Result::Continue;
+}
+
 VkResult BufferHelper::initSuballocation(Context *context,
                                          uint32_t memoryTypeIndex,
                                          size_t size,
@@ -7534,6 +7575,45 @@ angle::Result ImageHelper::initImplicitMultisampledRenderToTexture(
     ANGLE_TRY(initMemoryAndNonZeroFillIfNeeded(
         context, hasProtectedContent, memoryProperties, kMultisampledMemoryFlags,
         vk::MemoryAllocationType::ImplicitMultisampledRenderToTextureImage));
+    return angle::Result::Continue;
+}
+
+angle::Result ImageHelper::initRgbDrawImageForYuvResolve(ErrorContext *context,
+                                                         const MemoryProperties &memoryProperties,
+                                                         const ImageHelper &resolveImage,
+                                                         bool isRobustResourceInitEnabled)
+{
+    // Find the RGB format corresponding to the YUV format
+    const vk::ExternalYuvFormatInfo &externalFormatInfo =
+        context->getRenderer()->getExternalFormatTable()->getExternalFormatInfo(
+            resolveImage.getActualFormatID());
+    const angle::FormatID formatID =
+        vk::GetFormatIDFromVkFormat(externalFormatInfo.colorAttachmentFormat);
+
+    // Create RGB draw image
+    const VkImageUsageFlags usageFlags =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+
+    const bool hasProtectedContent =
+        (resolveImage.getCreateFlags() & VK_IMAGE_CREATE_PROTECTED_BIT) != 0;
+    const VkImageCreateFlags createFlags = hasProtectedContent ? VK_IMAGE_CREATE_PROTECTED_BIT : 0;
+
+    ANGLE_TRY(initExternal(context, gl::TextureType::_2D, resolveImage.getExtents(), formatID,
+                           formatID, 1, usageFlags, createFlags, ImageLayout::Undefined, nullptr,
+                           resolveImage.getFirstAllocatedLevel(), resolveImage.getLevelCount(),
+                           resolveImage.getLayerCount(), isRobustResourceInitEnabled,
+                           hasProtectedContent, YcbcrConversionDesc{}, nullptr));
+
+    ASSERT(!hasEmulatedImageChannels());
+
+    const VkMemoryPropertyFlags yuvMemoryFlags =
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+        (hasProtectedContent ? VK_MEMORY_PROPERTY_PROTECTED_BIT : 0);
+
+    ANGLE_TRY(initMemoryAndNonZeroFillIfNeeded(context, hasProtectedContent, memoryProperties,
+                                               yuvMemoryFlags,
+                                               vk::MemoryAllocationType::ImplicitYuvTargetImage));
+
     return angle::Result::Continue;
 }
 
@@ -12709,7 +12789,7 @@ angle::Result ImageViewHelper::initReadViewsImpl(ContextVk *contextVk,
             contextVk, viewType, aspectFlags, readSwizzle, &getReadImageView(), baseLevel,
             levelCount, baseLayer, layerCount, imageUsageFlags, astcDecodePrecision));
 
-        if (image.getActualFormat().isYUV)
+        if (image.hasImmutableSampler())
         {
             ANGLE_TRY(image.initLayerImageViewWithYuvModeOverride(
                 contextVk, viewType, aspectFlags, readSwizzle,
@@ -12806,7 +12886,7 @@ angle::Result ImageViewHelper::initLinearAndSrgbReadViewsImpl(ContextVk *context
                 baseLayer, layerCount, imageUsageFlags, srgbFormat, astcDecodePrecision));
         }
 
-        if (image.getActualFormat().isYUV)
+        if (image.hasImmutableSampler())
         {
             ANGLE_TRY(image.initLayerImageViewWithYuvModeOverride(
                 contextVk, viewType, aspectFlags, readSwizzle,

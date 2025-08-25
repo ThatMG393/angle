@@ -43,28 +43,16 @@ vars = {
   'checkout_angle_mesa': False,
 
   # Version of Chromium our Chromium-based DEPS are mirrored from.
-  'chromium_revision': '07e7c6a89f6cee1a2a3238bfd5783bced226092c',
+  'chromium_revision': 'f7c7637e7e84de45b1fe073c07713b89a06cf52f',
   # We never want to checkout chromium,
   # but need a dummy DEPS entry for the autoroller
   'dummy_checkout_chromium': False,
 
   # Current revision of VK-GL-CTS (a.k.a dEQP).
-  'vk_gl_cts_revision': 'ad59a18f2ce08e60c9f4ab0aaf9b62679ab8c626',
+  'vk_gl_cts_revision': '0a3dad34ebb4cc9739fc3a9e8ed92322afc6499b',
 
   # Current revision of googletest.
-  # Note: this dep cannot be auto-rolled b/c of nesting.
-  'googletest_revision': 'c67de117379f4d1c889c7581a0a76aa0979c2083',
-
-  # Current revision of Chrome's third_party googletest directory. This
-  # repository is mirrored as a separate repository, with separate git hashes
-  # that don't match the external googletest repository or Chrome. Mirrored
-  # patches will have a different git hash associated with them.
-  # To roll, first get the new hash for chromium_googletest_revision from the
-  # mirror of third_party/googletest located here:
-  # https://chromium.googlesource.com/chromium/src/third_party/googletest/
-  # Then get the new hash for googletest_revision from the root Chrome DEPS
-  # file: https://source.chromium.org/chromium/chromium/src/+/main:DEPS
-  'chromium_googletest_revision': '0784ddbe926a700e2216b224109791f7fa19eb2f',
+  'googletest_revision': '244cec869d12e53378fa0efb610cd4c32a454ec8',
 
   # Current revision of jsoncpp.
   # Note: this dep cannot be auto-rolled b/c of nesting.
@@ -88,16 +76,16 @@ vars = {
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling catapult
   # and whatever else without interference from each other.
-  'catapult_revision': 'ed07b403a26d3ba2cfe407e84716464b8899e575',
+  'catapult_revision': 'cc1b6334b8740dfc2a7dd336cb6d9250e2cb5b38',
 
   # the commit queue can handle CLs rolling Fuchsia sdk
   # and whatever else without interference from each other.
-  'fuchsia_version': 'version:28.20250709.3.1',
+  'fuchsia_version': 'version:29.20250815.6.1',
 
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling luci-go
   # and whatever else without interference from each other.
-  'luci_go': 'git_revision:3d4e77634359485da65136798a6278c463bdf11d',
+  'luci_go': 'git_revision:230495e01666a7468ff6803179519a5c93317083',
 
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling android_sdk_build-tools_version
@@ -110,7 +98,7 @@ vars = {
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling android_sdk_platform-tools_version
   # and whatever else without interference from each other.
-  'android_sdk_platform-tools_version': 'mjFmRj7k_XR9yj60pYbr9mG38FyEbU5oWdU56bZQ5cwC',
+  'android_sdk_platform-tools_version': 'qTD9QdBlBf3dyHsN1lJ0RH6AhHxR42Hmg2Ih-Vj4zIEC',
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling android_sdk_platforms_version
   # and whatever else without interference from each other.
@@ -133,7 +121,7 @@ vars = {
   'reclient_version': 're_client_version:0.179.0.28341fc7-gomaip',
 
   # siso CIPD package version.
-  'siso_version': 'git_revision:33e71490533f445467879650036b6af7940455f3',
+  'siso_version': 'git_revision:7e3433bde6dcf9d760b0423c5f47c51e65c7c0fa',
 
   # 'magic' text to tell depot_tools that git submodules should be accepted but
   # but parity with DEPS file is expected.
@@ -175,6 +163,7 @@ vars = {
   'checkout_angle_restricted_trace_asphalt_9': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_asphalt_9_2024': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_avakin_life': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_avatar_world': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_aztec_ruins': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_aztec_ruins_high': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_badland': 'checkout_angle_restricted_traces',
@@ -225,6 +214,7 @@ vars = {
   'checkout_angle_restricted_trace_dead_cells': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_dead_trigger_2': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_diablo_immortal': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_dice_dreams': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_disney_mirrorverse': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_disney_tsum_tsum': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_dont_starve': 'checkout_angle_restricted_traces',
@@ -256,6 +246,7 @@ vars = {
   'checkout_angle_restricted_trace_five_nights_at_freddys': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_free_fire': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_free_fire_max': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_frost_and_flame': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_gacha_club': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_gacha_life': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_gangstar_vegas': 'checkout_angle_restricted_traces',
@@ -265,6 +256,7 @@ vars = {
   'checkout_angle_restricted_trace_goddess_of_victory_nikke': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_going_balls': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_google_maps': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_gossip_harbor': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_grand_mountain_adventure': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_grimvalor': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_gwent_witcher_card_game': 'checkout_angle_restricted_traces',
@@ -278,6 +270,7 @@ vars = {
   'checkout_angle_restricted_trace_honkai_impact_3rd': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_honkai_star_rail': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_hungry_shark_evolution': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_hunter_assassin': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_idle_heroes': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_infinity_ops': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_injustice_2': 'checkout_angle_restricted_traces',
@@ -287,8 +280,11 @@ vars = {
   'checkout_angle_restricted_trace_junes_journey': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_kartrider_rush': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_kentucky_route_zero': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_kingshot': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_klondike_adventures': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_last_shelter_survival': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_last_war_survival_game': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_last_z_survival_shooter': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_league_of_legends_wild_rift': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_lego_legacy': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_life_is_strange': 'checkout_angle_restricted_traces',
@@ -336,6 +332,7 @@ vars = {
   'checkout_angle_restricted_trace_off_the_road': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_one_piece_treasure_cruise': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_one_punch_man': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_onmyoji': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_oxenfree': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_passmark_complex': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_passmark_simple': 'checkout_angle_restricted_traces',
@@ -376,6 +373,7 @@ vars = {
   'checkout_angle_restricted_trace_sakura_school_simulator': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_scary_teacher_3d': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_scrabble_go': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_seaside_escape': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_shadow_fight_2': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_shadow_fight_3': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_shadowgun_legends': 'checkout_angle_restricted_traces',
@@ -422,6 +420,7 @@ vars = {
   'checkout_angle_restricted_trace_tmnt_shredders_revenge': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_toca_life_world': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_toon_blast': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_top_heroes_kingdom_saga': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_top_war': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_tower_of_fantasy': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_township': 'checkout_angle_restricted_traces',
@@ -435,6 +434,7 @@ vars = {
   'checkout_angle_restricted_trace_warhammer_40000_freeblade': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_wayward_souls': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_whatsapp': 'checkout_angle_restricted_traces',
+  'checkout_angle_restricted_trace_whiteout_survival': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_woodoku': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_words_crush': 'checkout_angle_restricted_traces',
   'checkout_angle_restricted_trace_words_of_wonders': 'checkout_angle_restricted_traces',
@@ -457,12 +457,12 @@ vars = {
 deps = {
 
   'build': {
-    'url': Var('chromium_git') + '/chromium/src/build.git@17fc288d8278ffe413b2e24021c9e1d6dda76b72',
+    'url': Var('chromium_git') + '/chromium/src/build.git@28fc2a8926a053943647b94d5a314ace0d2fbea8',
     'condition': 'not build_with_chromium',
   },
 
   'buildtools': {
-    'url': Var('chromium_git') + '/chromium/src/buildtools.git@36ee1c7a300d1a09de3cce9f02c4feb1e8e1407e',
+    'url': Var('chromium_git') + '/chromium/src/buildtools.git@5c2d6c70afa623219e0310a0c3b0c3f9d7d4c6e3',
     'condition': 'not build_with_chromium',
   },
 
@@ -475,22 +475,22 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/linux-${{arch}}',
-        'version': 'git_revision:85f62c164c829442fb662f6aa1243c02bcc47155',
+        'version': 'git_revision:ee5b7e32b961a9da1933e9f46a018ba6cac8ef60',
       }
     ],
     'dep_type': 'cipd',
-    'condition': 'not build_with_chromium and host_os == "linux"',
+    'condition': 'not build_with_chromium and checkout_linux',
   },
 
   'buildtools/mac': {
     'packages': [
       {
         'package': 'gn/gn/mac-${{arch}}',
-        'version': 'git_revision:85f62c164c829442fb662f6aa1243c02bcc47155',
+        'version': 'git_revision:ee5b7e32b961a9da1933e9f46a018ba6cac8ef60',
       }
     ],
     'dep_type': 'cipd',
-    'condition': 'not build_with_chromium and host_os == "mac"',
+    'condition': 'not build_with_chromium and checkout_mac',
   },
 
   'buildtools/reclient': {
@@ -508,25 +508,25 @@ deps = {
     'packages': [
       {
         'package': 'gn/gn/windows-amd64',
-        'version': 'git_revision:85f62c164c829442fb662f6aa1243c02bcc47155',
+        'version': 'git_revision:ee5b7e32b961a9da1933e9f46a018ba6cac8ef60',
       }
     ],
     'dep_type': 'cipd',
-    'condition': 'not build_with_chromium and host_os == "win"',
+    'condition': 'not build_with_chromium and checkout_win',
   },
 
   'testing': {
-    'url': '{chromium_git}/chromium/src/testing@436769856a89097067286d0a3a6270a50c943c58',
+    'url': '{chromium_git}/chromium/src/testing@f8580aca7e44ff90491d18ad20b1b9dca4f7795e',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/abseil-cpp': {
-    'url': Var('chromium_git') + '/chromium/src/third_party/abseil-cpp@320a9daea68b36343d2380eeefa368c2db56e8f9',
+    'url': Var('chromium_git') + '/chromium/src/third_party/abseil-cpp@4862f4f12d15d24ace7ab9f1655d91d707c9b51b',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/android_build_tools': {
-    'url': Var('chromium_git') + '/chromium/src/third_party/android_build_tools@f43e2cc47f6b1cc8cbe768908698c789d779a054',
+    'url': Var('chromium_git') + '/chromium/src/third_party/android_build_tools@d48cf42075eca9efe4a30c48552301d6538fe40f',
     'condition': 'checkout_android and not build_with_chromium',
   },
 
@@ -534,7 +534,7 @@ deps = {
       'packages': [
           {
               'package': 'chromium/third_party/android_build_tools/aapt2',
-              'version': 'QAJPvXRIKAdvDEnn23X7nLv-pZlN3qjPeD_vq4QsYRIC',
+              'version': '2Tff49a5dYTM5YvxxqyOsTQ9k8nOqM4ayydbCuKoxIwC',
           },
       ],
       'condition': 'checkout_android and not build_with_chromium',
@@ -567,7 +567,7 @@ deps = {
       'packages': [
           {
                'package': 'chromium/third_party/android_build_tools/error_prone',
-               'version': 'CEqMYEsaqKnNQyglUsxm_2t7HlZvMDFoLEDpOwojrLQC',
+               'version': 'vPi1VfStH9EQCdbZI5NAMcK7C_dWs3-8Frr1CAzIafEC',
           },
       ],
       'condition': 'checkout_android and not build_with_chromium',
@@ -589,7 +589,7 @@ deps = {
       'packages': [
           {
                'package': 'chromium/third_party/android_build_tools/lint',
-               'version': 'b8AHtDAbZgiVrWGB-AEmvVAb_qTfgMhi0hi_swHIx6EC',
+               'version': 'wz3jGm7ZRm38JBU96mWdB_kyuGynEgbN_KAIvibvbAsC',
           },
       ],
       'condition': 'checkout_android and not build_with_chromium',
@@ -600,7 +600,7 @@ deps = {
       'packages': [
           {
                'package': 'chromium/third_party/android_build_tools/manifest_merger',
-               'version': '1hP6AEaf7D9UPDHSjdo0-C1zpHYErmkxDJRMfymsexAC',
+               'version': 'K-0K2jznbc6LGEnKhT8NliSShwC43TBuVFZ6gRjOuxgC',
           },
       ],
       'condition': 'checkout_android and not build_with_chromium',
@@ -611,7 +611,7 @@ deps = {
       'packages': [
           {
                'package': 'chromium/third_party/android_build_tools/nullaway',
-               'version': 'mFkUqdlIqmMQ3rAaTHFmOBYjNFgFUQOmMlPG6PGgmHYC',
+               'version': 'Zk_ffB0B6qGrr2ZDKqCxAgnPmo4-5giVRIauRffZaZYC',
           },
       ],
       'condition': 'checkout_android and not build_with_chromium',
@@ -619,7 +619,7 @@ deps = {
   },
 
   'third_party/android_deps': {
-    'url': Var('chromium_git') + '/chromium/src/third_party/android_deps@214ad75f39137c63ba253e5376950b80b0c86024',
+    'url': Var('chromium_git') + '/chromium/src/third_party/android_deps@8f103008c5a21af47a724a4a3ae11639620df33e',
     'condition': 'checkout_android and not build_with_chromium',
   },
 
@@ -640,7 +640,7 @@ deps = {
   },
 
   'third_party/android_sdk': {
-    'url': Var('chromium_git') + '/chromium/src/third_party/android_sdk@e71ef403c5012f74b3d06c3d468d96fc951381c1',
+    'url': Var('chromium_git') + '/chromium/src/third_party/android_sdk@f1c6b36cdea6e1bd037428dfa41fe69170bf00bf',
     'condition': 'checkout_android and not build_with_chromium',
   },
 
@@ -731,7 +731,7 @@ deps = {
   },
 
   'third_party/depot_tools': {
-    'url': Var('chromium_git') + '/chromium/tools/depot_tools.git@28358f4020ad58b86301a723807f8254326863c1',
+    'url': Var('chromium_git') + '/chromium/tools/depot_tools.git@380bbf9e373c35da4b18a0bd8f9c70f36197446f',
     'condition': 'not build_with_chromium',
   },
 
@@ -774,13 +774,13 @@ deps = {
     'url': Var('chromium_git') + '/external/github.com/glmark2/glmark2@6edcf02205fd1e8979dc3f3964257a81959b80c8',
   },
 
-  'third_party/googletest': {
-    'url': Var('chromium_git') + '/chromium/src/third_party/googletest' + '@' + Var('chromium_googletest_revision'),
+  'third_party/googletest/src': {
+    'url': Var('chromium_git') + '/external/github.com/google/googletest.git' + '@' + Var('googletest_revision'),
     'condition': 'not build_with_chromium',
   },
 
   'third_party/ijar': {
-    'url': Var('chromium_git') + '/chromium/src/third_party/ijar@935be444d65defb71865977f378068644ef9757c',
+    'url': Var('chromium_git') + '/chromium/src/third_party/ijar@4b641086e01350b83cb6f2b60e3dcf9f800330e8',
     'condition': 'checkout_android and not build_with_chromium',
   },
 
@@ -849,22 +849,22 @@ deps = {
    },
 
   'third_party/libc++/src': {
-    'url': Var('chromium_git') + '/external/github.com/llvm/llvm-project/libcxx.git@ac9e4860cadb33ec5185084ed7c6345eca5fa50c',
+    'url': Var('chromium_git') + '/external/github.com/llvm/llvm-project/libcxx.git@91206b4d03e433ae34b50d06890df7d86fc50aff',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/libc++abi/src': {
-    'url': Var('chromium_git') + '/external/github.com/llvm/llvm-project/libcxxabi.git@b6f2833c99549e5725055f6e9c795ca6e226afc0',
+    'url': Var('chromium_git') + '/external/github.com/llvm/llvm-project/libcxxabi.git@f7f5a32b3e9582092d8a4511acec036a09ae8524',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/llvm-libc/src': {
-    'url': Var('chromium_git') + '/external/github.com/llvm/llvm-project/libc.git@15268943dc72c67cd85764ef715a2a5f3cd403a0',
+    'url': Var('chromium_git') + '/external/github.com/llvm/llvm-project/libc.git@2b79b2b486cfd9e1982a619026f4e4266b79c77f',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/libunwind/src': {
-    'url': Var('chromium_git') + '/external/github.com/llvm/llvm-project/libunwind.git@84c5262b57147e9934c0a8f2302d989b44ec7093',
+    'url': Var('chromium_git') + '/external/github.com/llvm/llvm-project/libunwind.git@c948b3c916ac5c2369a3f9891342970d4dc252b9',
     'condition': 'not build_with_chromium',
   },
 
@@ -938,7 +938,7 @@ deps = {
   },
 
   'third_party/protobuf': {
-    'url': Var('chromium_git') + '/chromium/src/third_party/protobuf@17e748fa88a92644b8879ab76126ead5efbdff29',
+    'url': Var('chromium_git') + '/chromium/src/third_party/protobuf@0b06c2f8250859d2c9c746f0d682c54c3402f75b',
     'condition': 'not build_with_chromium',
   },
 
@@ -951,7 +951,7 @@ deps = {
       'packages': [
           {
               'package': 'chromium/third_party/r8',
-              'version': 'JPUb5oFXJVCZnmHps_x4jsuJNZzT4zTUYPDo0AsI1K0C',
+              'version': 'Xyh7Kdh-M2Dj5lwFGH2QRe7TFErRgYCvMFMkPiYnIwsC',
           },
       ],
       'condition': 'checkout_android and not build_with_chromium',
@@ -965,7 +965,7 @@ deps = {
       'packages': [
           {
               'package': 'chromium/third_party/r8',
-              'version': 'JPUb5oFXJVCZnmHps_x4jsuJNZzT4zTUYPDo0AsI1K0C',
+              'version': 'pBaBgtFdvclLMBwz1H7s88bhc3ioF8iEyFh6rZ81054C',
           },
       ],
       'condition': 'checkout_android and not build_with_chromium',
@@ -977,7 +977,7 @@ deps = {
   },
 
   'third_party/re2/src': {
-    'url': Var('chromium_git') + '/external/github.com/google/re2.git@ade723c0c3bb1961885e70ff865d211470d477a4',
+    'url': Var('chromium_git') + '/external/github.com/google/re2.git@6569a9a3df256f4c0c3813cb8ee2f8eef6e2c1fb',
     'condition': 'not build_with_chromium',
   },
 
@@ -987,7 +987,7 @@ deps = {
   },
 
   'third_party/rust': {
-    'url': Var('chromium_git') + '/chromium/src/third_party/rust@3203dc19330eab97576418937681d1ac0f952f41',
+    'url': Var('chromium_git') + '/chromium/src/third_party/rust@5d5c1435d7200ebc7f70366b967475e69b82f5eb',
     'condition': 'not build_with_chromium',
   },
 
@@ -1008,7 +1008,7 @@ deps = {
   },
 
   'third_party/SwiftShader': {
-    'url': Var('swiftshader_git') + '/SwiftShader@b347398f5e864dc2853c15da12efcd33c5412e1b',
+    'url': Var('swiftshader_git') + '/SwiftShader@0390a544a9520c11837f7d2da99a7f480622f29c',
     'condition': 'not build_with_chromium',
   },
 
@@ -1016,7 +1016,7 @@ deps = {
       'packages': [
           {
               'package': 'chromium/third_party/turbine',
-              'version': 'TkTaFqF4Bs-JmFtxFV_Nfh4u5jh_401ZQsLhC7vIEqQC',
+              'version': '9ZS5YYFBth7RSqNe7VLip-qJhk00WoicV_Qb0byHna8C',
           },
       ],
       'condition': 'checkout_android and not build_with_chromium',
@@ -1028,17 +1028,17 @@ deps = {
   },
 
   'third_party/vulkan-deps': {
-    'url': Var('chromium_git') + '/vulkan-deps@0b8bda098b9aec66881812324314085f9bc53983',
+    'url': Var('chromium_git') + '/vulkan-deps@36fbc53c546cbf9acafcf7996d3aba2871026dae',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/glslang/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/glslang@f43df42fe69bb38d43625b53e0706bbee43d74b4',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/glslang@7899f3c1bebd55594e405e0736abf43f700c2c8b',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/lunarg-vulkantools/src': {
-    'url': '{chromium_git}/external/github.com/LunarG/VulkanTools@597e427cce3fc97a8455b26aba1a1189546717c3',
+    'url': '{chromium_git}/external/github.com/LunarG/VulkanTools@a906345b8a7bccc416b006b2048e13f40d9b2327',
     'condition': 'not build_with_chromium',
   },
 
@@ -1048,37 +1048,37 @@ deps = {
   },
 
   'third_party/spirv-headers/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/SPIRV-Headers@c8ad050fcb29e42a2f57d9f59e97488f465c436d',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/SPIRV-Headers@a8637796c28386c3cf3b4e8107020fbb52c46f3f',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/spirv-tools/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/SPIRV-Tools@8cf1bf9bb922e33135e6e343a566764015da2dc6',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/SPIRV-Tools@8a8bb6c89174ed753eb18a438092ee59356efc3c',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/vulkan-headers/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-Headers@89268a6d17fc87003b209a1422c17ab288be99a0',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-Headers@2efaa559ff41655ece68b2e904e2bb7e7d55d265',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/vulkan-loader/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-Loader@a1684e4bd23ab130c5e7c37ab72b07dd541897a9',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-Loader@484f3cd7dfb13f63a8b8930cb0397e9b849ab076',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/vulkan-tools/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-Tools@f766b30b2de3ffe2cf6b656d943720882617ec58',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-Tools@0eb12b4ea70b15be6a10f6212c1633e5c9ce0cca',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/vulkan-utility-libraries/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-Utility-Libraries@df2e3581520f36776cd42b9fec3ec4a51ab878ef',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-Utility-Libraries@4f4c0b6c61223b703f1c753a404578d7d63932ad',
     'condition': 'not build_with_chromium',
   },
 
   'third_party/vulkan-validation-layers/src': {
-    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-ValidationLayers@dad479f6294df6c7a706964c489926be943a8baf',
+    'url': '{chromium_git}/external/github.com/KhronosGroup/Vulkan-ValidationLayers@f45d804fb84c4744667a298e85741161aa98c5d6',
     'condition': 'not build_with_chromium',
   },
 
@@ -1093,17 +1093,17 @@ deps = {
   },
 
   'third_party/zlib': {
-    'url': Var('chromium_git') + '/chromium/src/third_party/zlib@363a126ed293970f3df97ee5f760cba29a29e193',
+    'url': Var('chromium_git') + '/chromium/src/third_party/zlib@044b44e6deab31fe77f09c948f1c5d870b3a7a31',
     'condition': 'not build_with_chromium',
   },
 
   'tools/android': {
-    'url': Var('chromium_git') + '/chromium/src/tools/android@e8b2f1816ffd8c895382525271ac963b8c9b476c',
+    'url': Var('chromium_git') + '/chromium/src/tools/android@7d8848041e5339136a1c3c78fcb93148dd618595',
     'condition': 'checkout_android and not build_with_chromium',
   },
 
   'tools/clang': {
-    'url': Var('chromium_git') + '/chromium/src/tools/clang.git@ad203d4ebe040f9ba34f900f4c4c8dfe486e2f67',
+    'url': Var('chromium_git') + '/chromium/src/tools/clang.git@d9f910bd0fd1d843ddb53be78a7e98518674df1d',
     'condition': 'not build_with_chromium',
   },
 
@@ -1138,22 +1138,22 @@ deps = {
   },
 
   'tools/mb': {
-    'url': Var('chromium_git') + '/chromium/src/tools/mb@6c50647ee969539f9371fafdeeb38d6b2c13dc34',
+    'url': Var('chromium_git') + '/chromium/src/tools/mb@513bc2117e7d9682d0a4814b40d5b9b216a4cb98',
     'condition': 'not build_with_chromium',
   },
 
   'tools/md_browser': {
-    'url': Var('chromium_git') + '/chromium/src/tools/md_browser@6cc8e58a83412dc31de6fb7614fadb0b51748d4b',
+    'url': Var('chromium_git') + '/chromium/src/tools/md_browser@b7cfebc8143108734248df4e855a1bff01173f77',
     'condition': 'not build_with_chromium',
   },
 
   'tools/memory': {
-    'url': Var('chromium_git') + '/chromium/src/tools/memory@2ea414c50e21048ff88faff869b41df2bbf9ab3c',
+    'url': Var('chromium_git') + '/chromium/src/tools/memory@3c7b1f4daab1520239cb172059e2e16684fd3128',
     'condition': 'not build_with_chromium',
   },
 
   'tools/perf': {
-    'url': Var('chromium_git') + '/chromium/src/tools/perf@2af564c7f9243f52d936cc36ce78b5224731667c',
+    'url': Var('chromium_git') + '/chromium/src/tools/perf@228d7968ff69aabccc2cc8477d3a9910e56f6441',
     'condition': 'not build_with_chromium',
   },
 
@@ -1168,7 +1168,7 @@ deps = {
   },
 
   'tools/rust': {
-    'url': Var('chromium_git') + '/chromium/src/tools/rust.git@13687c3088bd61cfd830dcd705ae2add540f52ff',
+    'url': Var('chromium_git') + '/chromium/src/tools/rust.git@7074a194d019d19ed6fa2a313921d9876b54e8b2',
     'condition': 'not build_with_chromium',
   },
 
@@ -1176,7 +1176,7 @@ deps = {
       'packages': [
         {
           'package': 'skia/tools/goldctl/linux-amd64',
-          'version': 'dKZpRJmIZbZWCBXvVVjs1YTZslJoSBMHBIqTpdpsN-QC',
+          'version': '46Onf_f3s_Mr84pViZFnexVYU47ArSn3knDqNZcIoYsC',
         },
       ],
       'dep_type': 'cipd',
@@ -1187,7 +1187,7 @@ deps = {
       'packages': [
         {
           'package': 'skia/tools/goldctl/windows-amd64',
-          'version': '59DTb2NmGNjG4dCKnsF9mfg-bxq-4OLfQ4z78-PChnkC',
+          'version': 'sYuoNL-siny-CypUt4LuqE25k1hWho4rLa3T7ikBQAoC',
         },
       ],
       'dep_type': 'cipd',
@@ -1198,7 +1198,7 @@ deps = {
       'packages': [
         {
           'package': 'skia/tools/goldctl/mac-amd64',
-          'version': '12tDnieLoBvORD80sklJL-hfBv4LYEKMmrZHsGJ5gnsC',
+          'version': 'itdWmANhuoNsgIG1DuIe7XMdwQR4Vc9kkznuHSuPOekC',
         },
       ],
       'dep_type': 'cipd',
@@ -1209,7 +1209,7 @@ deps = {
       'packages': [
         {
           'package': 'skia/tools/goldctl/mac-arm64',
-          'version': 't1RKQ6QfRd7ARC5xw--IwYvSAfxeKuY0e2B3CgVWjugC',
+          'version': 'aFRLGxnuqC86Y3ejs72PnkJfG0caCnrl72QiuxJ1XbkC',
         },
       ],
       'dep_type': 'cipd',
@@ -1219,6 +1219,11 @@ deps = {
   'tools/valgrind': {
     'url': Var('chromium_git') + '/chromium/src/tools/valgrind@da34b95fdbf2032df6cda5f3828c2ba421592644',
     'condition': 'not build_with_chromium',
+  },
+
+  'tools/win': {
+    'url': Var('chromium_git') + '/chromium/src/tools/win@89d58ebe78f02706d414154f923f759a05a887b6',
+    'condition': 'checkout_win and not build_with_chromium',
   },
 
   # === ANGLE Restricted Trace Generated Code Start ===
@@ -1431,6 +1436,16 @@ deps = {
       ],
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_avakin_life',
+  },
+  'src/tests/restricted_traces/avatar_world': {
+      'packages': [
+        {
+            'package': 'angle/traces/avatar_world',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_avatar_world',
   },
   'src/tests/restricted_traces/aztec_ruins': {
       'packages': [
@@ -1932,6 +1947,16 @@ deps = {
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_diablo_immortal',
   },
+  'src/tests/restricted_traces/dice_dreams': {
+      'packages': [
+        {
+            'package': 'angle/traces/dice_dreams',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_dice_dreams',
+  },
   'src/tests/restricted_traces/disney_mirrorverse': {
       'packages': [
         {
@@ -2242,6 +2267,16 @@ deps = {
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_free_fire_max',
   },
+  'src/tests/restricted_traces/frost_and_flame': {
+      'packages': [
+        {
+            'package': 'angle/traces/frost_and_flame',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_frost_and_flame',
+  },
   'src/tests/restricted_traces/gacha_club': {
       'packages': [
         {
@@ -2331,6 +2366,16 @@ deps = {
       ],
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_google_maps',
+  },
+  'src/tests/restricted_traces/gossip_harbor': {
+      'packages': [
+        {
+            'package': 'angle/traces/gossip_harbor',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_gossip_harbor',
   },
   'src/tests/restricted_traces/grand_mountain_adventure': {
       'packages': [
@@ -2462,6 +2507,16 @@ deps = {
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_hungry_shark_evolution',
   },
+  'src/tests/restricted_traces/hunter_assassin': {
+      'packages': [
+        {
+            'package': 'angle/traces/hunter_assassin',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_hunter_assassin',
+  },
   'src/tests/restricted_traces/idle_heroes': {
       'packages': [
         {
@@ -2552,6 +2607,16 @@ deps = {
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_kentucky_route_zero',
   },
+  'src/tests/restricted_traces/kingshot': {
+      'packages': [
+        {
+            'package': 'angle/traces/kingshot',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_kingshot',
+  },
   'src/tests/restricted_traces/klondike_adventures': {
       'packages': [
         {
@@ -2571,6 +2636,26 @@ deps = {
       ],
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_last_shelter_survival',
+  },
+  'src/tests/restricted_traces/last_war_survival_game': {
+      'packages': [
+        {
+            'package': 'angle/traces/last_war_survival_game',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_last_war_survival_game',
+  },
+  'src/tests/restricted_traces/last_z_survival_shooter': {
+      'packages': [
+        {
+            'package': 'angle/traces/last_z_survival_shooter',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_last_z_survival_shooter',
   },
   'src/tests/restricted_traces/league_of_legends_wild_rift': {
       'packages': [
@@ -3042,6 +3127,16 @@ deps = {
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_one_punch_man',
   },
+  'src/tests/restricted_traces/onmyoji': {
+      'packages': [
+        {
+            'package': 'angle/traces/onmyoji',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_onmyoji',
+  },
   'src/tests/restricted_traces/oxenfree': {
       'packages': [
         {
@@ -3441,6 +3536,16 @@ deps = {
       ],
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_scrabble_go',
+  },
+  'src/tests/restricted_traces/seaside_escape': {
+      'packages': [
+        {
+            'package': 'angle/traces/seaside_escape',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_seaside_escape',
   },
   'src/tests/restricted_traces/shadow_fight_2': {
       'packages': [
@@ -3902,6 +4007,16 @@ deps = {
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_toon_blast',
   },
+  'src/tests/restricted_traces/top_heroes_kingdom_saga': {
+      'packages': [
+        {
+            'package': 'angle/traces/top_heroes_kingdom_saga',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_top_heroes_kingdom_saga',
+  },
   'src/tests/restricted_traces/top_war': {
       'packages': [
         {
@@ -4031,6 +4146,16 @@ deps = {
       ],
       'dep_type': 'cipd',
       'condition': 'checkout_angle_restricted_trace_whatsapp',
+  },
+  'src/tests/restricted_traces/whiteout_survival': {
+      'packages': [
+        {
+            'package': 'angle/traces/whiteout_survival',
+            'version': 'version:1',
+        },
+      ],
+      'dep_type': 'cipd',
+      'condition': 'checkout_angle_restricted_trace_whiteout_survival',
   },
   'src/tests/restricted_traces/woodoku': {
       'packages': [
@@ -4225,17 +4350,6 @@ deps = {
           {
               'package': 'chromium/third_party/android_deps/libs/com_google_android_apps_common_testing_accessibility_framework_accessibility_test_framework',
               'version': 'version:2@4.0.0.cr1',
-          },
-      ],
-      'condition': 'checkout_android and not build_with_chromium and non_git_source',
-      'dep_type': 'cipd',
-  },
-
-  'third_party/android_deps/cipd/libs/com_google_ar_impress': {
-      'packages': [
-          {
-              'package': 'chromium/third_party/android_deps/libs/com_google_ar_impress',
-              'version': 'version:2@0.0.3.cr1',
           },
       ],
       'condition': 'checkout_android and not build_with_chromium and non_git_source',
@@ -4640,7 +4754,6 @@ hooks = [
 
 recursedeps = [
   'buildtools',
-  'third_party/googletest',
   'third_party/jsoncpp',
   'third_party/dawn',
 ]

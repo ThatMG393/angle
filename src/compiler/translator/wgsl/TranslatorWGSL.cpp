@@ -409,7 +409,7 @@ const TConstantUnion *OutputWGSLTraverser::emitConstantUnion(const TType &type,
     else
     {
         size_t size = type.getObjectSize();
-        // If the type's size is more than 1, the type needs to be written with parantheses. This
+        // If the type's size is more than 1, the type needs to be written with parentheses. This
         // applies for vectors, matrices, and arrays.
         bool writeType = size > 1;
         if (writeType)
@@ -972,6 +972,7 @@ void OutputWGSLTraverser::emitArrayIndex(TIntermTyped &leftNode, TIntermTyped &r
     // entire array back to the unwrapped type).
     bool needsUnwrapping                  = false;
     bool isUniformMatrixNeedingConversion = false;
+    bool isUniformBoolNeedingConversion   = false;
     TIntermBinary *leftNodeBinary         = leftNode.getAsBinaryNode();
     if (leftNodeBinary && leftNodeBinary->getOp() == TOperator::EOpIndexDirectStruct)
     {
@@ -985,11 +986,14 @@ void OutputWGSLTraverser::emitArrayIndex(TIntermTyped &leftNode, TIntermTyped &r
 
         isUniformMatrixNeedingConversion = isInUniformAddressSpace && IsMatCx2(&leftType);
 
+        isUniformBoolNeedingConversion =
+            isInUniformAddressSpace && leftType.getBasicType() == EbtBool;
+
         ASSERT(!needsUnwrapping || !isUniformMatrixNeedingConversion);
     }
 
     // Emit the left side, which should be of type array.
-    if (needsUnwrapping || isUniformMatrixNeedingConversion)
+    if (needsUnwrapping || isUniformMatrixNeedingConversion || isUniformBoolNeedingConversion)
     {
         if (isUniformMatrixNeedingConversion)
         {
@@ -1003,6 +1007,12 @@ void OutputWGSLTraverser::emitArrayIndex(TIntermTyped &leftNode, TIntermTyped &r
             // Make sure the conversion function referenced here is actually generated in the
             // resulting WGSL.
             mWGSLGenerationMetadataForUniforms->outputMatCx2Conversion.insert(baseType);
+        }
+        else if (isUniformBoolNeedingConversion)
+        {
+            // Convert just this one array element into a bool instead of converting the entire
+            // array into an array of booleans and indexing into that.
+            OutputUniformBoolOrBvecConversion(mSink, leftType);
         }
         emitStructIndexNoUnwrapping(leftNodeBinary);
     }
@@ -1064,7 +1074,8 @@ void OutputWGSLTraverser::emitArrayIndex(TIntermTyped &leftNode, TIntermTyped &r
     {
         mSink << "." << kWrappedStructFieldName;
     }
-    else if (isUniformMatrixNeedingConversion)
+
+    if (isUniformMatrixNeedingConversion || isUniformBoolNeedingConversion)
     {
         // Close conversion function call
         mSink << ")";
@@ -1085,6 +1096,9 @@ void OutputWGSLTraverser::emitStructIndex(TIntermBinary *binaryNode)
 
     bool isUniformMatrixNeedingConversion = isInUniformAddressSpace && IsMatCx2(binaryNodeType);
 
+    bool isUniformBoolNeedingConversion =
+        isInUniformAddressSpace && binaryNode->getBasicType() == EbtBool;
+
     bool needsUnwrapping =
         ElementTypeNeedsUniformWrapperStruct(isInUniformAddressSpace, binaryNodeType);
     if (needsUnwrapping)
@@ -1104,8 +1118,13 @@ void OutputWGSLTraverser::emitStructIndex(TIntermBinary *binaryNode)
         // WGSL.
         mWGSLGenerationMetadataForUniforms->outputMatCx2Conversion.insert(*binaryNodeType);
     }
+    else if (isUniformBoolNeedingConversion)
+    {
+        // Should only trigger in case of a boolean not in an array.
+        OutputUniformBoolOrBvecConversion(mSink, *binaryNodeType);
+    }
     emitStructIndexNoUnwrapping(binaryNode);
-    if (needsUnwrapping || isUniformMatrixNeedingConversion)
+    if (needsUnwrapping || isUniformMatrixNeedingConversion || isUniformBoolNeedingConversion)
     {
         mSink << ")";
     }
@@ -2529,8 +2548,14 @@ bool TranslatorWGSL::translate(TIntermBlock *root,
 {
     if (kOutputTreeBeforeTranslation)
     {
-        OutputTree(root, getInfoSink().info);
-        std::cout << getInfoSink().info.c_str();
+        TInfoSinkBase treeOut;
+        std::cout << "Initial tree for shader type "
+                  << (getShaderType() == GL_VERTEX_SHADER     ? "vertex shader"
+                      : getShaderType() == GL_FRAGMENT_SHADER ? "fragment shader "
+                                                              : "unknown")
+                  << std::endl;
+        OutputTree(root, treeOut);
+        std::cout << treeOut.c_str();
     }
 
     if (!preTranslateTreeModifications(root))
@@ -2540,9 +2565,11 @@ bool TranslatorWGSL::translate(TIntermBlock *root,
 
     if (kOutputTreeBeforeTranslation)
     {
+        TInfoSinkBase treeOut;
         std::cout << "After preTranslateTreeModifications(): " << std::endl;
-        OutputTree(root, getInfoSink().info);
-        std::cout << getInfoSink().info.c_str();
+        getInfoSink().info.erase();
+        OutputTree(root, treeOut);
+        std::cout << treeOut.c_str();
     }
     enableValidateNoMoreTransformations();
 
@@ -2553,6 +2580,7 @@ bool TranslatorWGSL::translate(TIntermBlock *root,
     // builtin variables are used.
     if (!GenerateMainFunctionAndIOStructs(*this, *root, rewritePipelineVarOutput))
     {
+        ANGLE_LOG(ERR) << "Failed to generate WGSL main functions";
         return false;
     }
 
@@ -2560,17 +2588,20 @@ bool TranslatorWGSL::translate(TIntermBlock *root,
     // Start writing the output structs that will be referred to by the `traverser`'s output.'
     if (!rewritePipelineVarOutput.OutputStructs(sink))
     {
+        ANGLE_LOG(ERR) << "Failed to output pipeline structs";
         return false;
     }
 
     if (!OutputUniformBlocksAndSamplers(this, root))
     {
+        ANGLE_LOG(ERR) << "Failed to output uniform blocks and samplers";
         return false;
     }
 
     UniformBlockMetadata uniformBlockMetadata;
     if (!RecordUniformBlockMetadata(root, uniformBlockMetadata))
     {
+        ANGLE_LOG(ERR) << "Failed to record uniform block metadata";
         return false;
     }
 
@@ -2590,6 +2621,7 @@ bool TranslatorWGSL::translate(TIntermBlock *root,
     // Write the actual WGSL main function, wgslMain(), which calls the GLSL main function.
     if (!rewritePipelineVarOutput.OutputMainFunction(sink))
     {
+        ANGLE_LOG(ERR) << "Failed to output WGSL main function";
         return false;
     }
 
